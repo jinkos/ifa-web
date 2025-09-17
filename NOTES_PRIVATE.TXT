@@ -1,2 +1,0 @@
-
-postgres://postgres:heCMDOcOxRj1oHZM@db.dcdekkhslbltxlorqjag.supabase.co
