@@ -18,6 +18,19 @@ import useSWR, { mutate } from 'swr';
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
+function getInitials(user?: User) {
+  if (!user) return '?';
+  const name = user.name?.trim();
+  if (name) {
+    const parts = name.split(/\s+/);
+    const first = parts[0]?.[0] ?? '';
+    const second = parts[1]?.[0] ?? '';
+    return (first + second).toUpperCase() || '?';
+  }
+  const handle = user.email?.split('@')[0] ?? '';
+  return (handle[0]?.toUpperCase() ?? '?');
+}
+
 function UserMenu() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { data: user } = useSWR<User>('/api/user', fetcher);
@@ -50,12 +63,7 @@ function UserMenu() {
       <DropdownMenuTrigger>
         <Avatar className="cursor-pointer size-9">
           <AvatarImage alt={user.name || ''} />
-          <AvatarFallback>
-            {user.email
-              .split(' ')
-              .map((n) => n[0])
-              .join('')}
-          </AvatarFallback>
+          <AvatarFallback>{getInitials(user)}</AvatarFallback>
         </Avatar>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="flex flex-col gap-1">
