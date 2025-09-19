@@ -1,3 +1,4 @@
+// SERVER-ONLY: Do not import this file in client components or shared libraries. Uses next/headers and App Router APIs.
 import { desc, and, eq, isNull } from 'drizzle-orm';
 import { db } from './drizzle';
 import { activityLogs, teamMembers, teams, users } from './schema';

@@ -1,3 +1,20 @@
+export const clients = pgTable('clients', {
+  client_id: serial('client_id').primaryKey(),
+  team_id: integer('team_id').notNull(),
+  name: varchar('name', { length: 255 }).notNull(),
+  email: varchar('email', { length: 255 }),
+  address1: varchar('address1', { length: 255 }),
+  address2: varchar('address2', { length: 255 }),
+  postcode: varchar('postcode', { length: 32 }),
+  mobile: varchar('mobile', { length: 32 }),
+  landline: varchar('landline', { length: 32 }),
+  created_by: varchar('created_by', { length: 255 }),
+  created_at: timestamp('created_at').notNull().defaultNow(),
+  updated_at: timestamp('updated_at').notNull().defaultNow(),
+});
+
+export type Client = typeof clients.$inferSelect;
+export type NewClient = typeof clients.$inferInsert;
 import {
   pgTable,
   serial,

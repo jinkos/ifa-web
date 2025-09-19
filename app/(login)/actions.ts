@@ -1,4 +1,5 @@
 'use server';
+// SERVER-ONLY: Do not import this file in client components or shared libraries. Uses next/headers and App Router APIs.
 
 import { z } from 'zod';
 import { and, eq, sql } from 'drizzle-orm';

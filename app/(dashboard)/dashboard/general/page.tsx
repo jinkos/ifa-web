@@ -8,10 +8,24 @@ import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
 import { updateAccount } from '@/app/(login)/actions';
 import { User } from '@/lib/db/schema';
-import useSWR from 'swr';
-import { Suspense } from 'react';
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
+import useSWR from 'swr';
+import { fetchJson } from '@/lib/http/fetchJson';
+import { Suspense } from 'react';
+import { useEffect, useState } from 'react';
+import { Team } from '@/lib/db/schema';
+function MyTeamId() {
+  const { data: team } = useSWR<Team>('/api/team', fetchJson);
+  if (!team) return null;
+  return (
+    <div className="mb-4">
+      <Label>My Team ID</Label>
+      <Input value={team.id} readOnly className="bg-gray-100" />
+    </div>
+  );
+}
+
+const fetcher = fetchJson as <T>(url: string) => Promise<T>;
 
 type ActionState = {
   name?: string;
@@ -89,6 +103,7 @@ export default function GeneralPage() {
           <CardTitle>Account Information</CardTitle>
         </CardHeader>
         <CardContent>
+          <MyTeamId />
           <form className="space-y-4" action={formAction}>
             <Suspense fallback={<AccountForm state={state} />}>
               <AccountFormWithData state={state} />
