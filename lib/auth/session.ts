@@ -1,3 +1,5 @@
+
+// SERVER-ONLY: Do not import this file in client components or shared libraries.
 import { compare, hash } from 'bcryptjs';
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
