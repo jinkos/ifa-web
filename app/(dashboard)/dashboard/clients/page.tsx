@@ -5,6 +5,7 @@ import { getTeamForUser } from '@/lib/db/queries';
 import 'server-only';
 import { ClientsTable } from './ClientsTable';
 import type { Client } from '@/lib/types/client';
+import { getServerClient } from '@/lib/supabase/client.server';
 
 export default async function ClientsPage() {
   // Get the current user's team (server-side)
@@ -12,12 +13,16 @@ export default async function ClientsPage() {
   if (!team?.id) {
     return <div className="p-4 text-red-500">Could not determine your team. Please reload the page.</div>;
   }
-  // Get the clients for this team (server-side)
-  const res = await fetch(`${process.env.BASE_URL || ''}/api/clients?teamId=${team.id}`, { cache: 'no-store' });
-  if (!res.ok) {
+  // Get the clients for this team directly via Supabase (server-side)
+  const supabase = getServerClient();
+  const { data, error } = await supabase
+    .from('clients')
+    .select('*')
+    .eq('team_id', team.id);
+  if (error) {
     return <div className="p-4 text-red-500">Failed to fetch clients.</div>;
   }
-  const clients: Client[] = await res.json();
+  const clients = (data ?? []) as Client[];
   return (
     <section className="p-4 lg:p-8">
       <div className="flex items-center justify-between mb-4">
