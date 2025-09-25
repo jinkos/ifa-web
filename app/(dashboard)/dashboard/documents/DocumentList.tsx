@@ -1,15 +1,13 @@
 "use client";
 import { useEffect, useState } from 'react';
 import { useSelectedClient } from '../SelectedClientContext';
-import useSWR from 'swr';
 import { useTeam } from '../TeamContext';
+import { deleteDocumentByPathAction } from './actions';
 // Listing now uses server API for broader compatibility (private/public buckets)
 
 type DocItem = { name: string; url: string };
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
-
-export default function DocumentList({ refreshToken }: { refreshToken?: number }) {
+export default function DocumentList({ refreshToken: externalRefreshToken }: { refreshToken?: number }) {
     const { selectedClient } = useSelectedClient();
     const { team } = useTeam();
     const [items, setItems] = useState<DocItem[]>([]);
@@ -18,6 +16,7 @@ export default function DocumentList({ refreshToken }: { refreshToken?: number }
     const [banner, setBanner] = useState<string | null>(null); // transient UI message (e.g., delete failure)
     const [confirmingName, setConfirmingName] = useState<string | null>(null);
     const [deletingName, setDeletingName] = useState<string | null>(null);
+    const [refreshToken, setRefreshToken] = useState(0);
 
     useEffect(() => {
         let ignore = false;
@@ -42,7 +41,7 @@ export default function DocumentList({ refreshToken }: { refreshToken?: number }
         load();
         return () => { ignore = true; };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [team?.id, selectedClient?.client_id, refreshToken]);
+    }, [team?.id, selectedClient?.client_id, refreshToken, externalRefreshToken]);
 
     if (!selectedClient) return <div className="mt-4 text-gray-500">Select a client to see documents.</div>;
     if (loading) return <div className="mt-4">Loading documents...</div>;
@@ -56,7 +55,26 @@ export default function DocumentList({ refreshToken }: { refreshToken?: number }
                     {banner}
                 </div>
             )}
-            <ul className="mt-4 space-y-2">
+                        <div className="mt-2 flex justify-end">
+                                <button
+                                    className="text-gray-600 hover:text-gray-900 p-1 rounded disabled:opacity-50"
+                                    onClick={() => setRefreshToken((t) => t + 1)}
+                                    disabled={loading}
+                                    aria-label="Refresh"
+                                >
+                                    {loading ? (
+                                        <svg className="animate-spin h-5 w-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l5-5-5-5v4A10 10 0 002 12h2z" />
+                                        </svg>
+                                    ) : (
+                                        <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582M20 20v-5h-.581M19.418 9A7.978 7.978 0 0012 4c-4.418 0-8 3.582-8 8m16 0c0 1.657-.672 3.157-1.762 4.243M4.582 15A7.978 7.978 0 0012 20c4.418 0 8-3.582 8-8" />
+                                        </svg>
+                                    )}
+                                </button>
+                        </div>
+                        <ul className="mt-2 space-y-2">
                 {items.map((it) => {
                     const startConfirm = () => setConfirmingName(it.name);
                     const cancelConfirm = () => setConfirmingName((name) => (name === it.name ? null : name));
@@ -66,20 +84,12 @@ export default function DocumentList({ refreshToken }: { refreshToken?: number }
                         const prev = items;
                         setItems((cur) => cur.filter((x) => x.name !== it.name));
                         try {
-                            const qs = new URLSearchParams({
-                                teamId: String(team.id),
-                                clientId: String(selectedClient.client_id),
-                                fileName: it.name ?? '', // Ensure fileName is a string
-                            });
-
-                            const res = await fetch(`/api/docs/delete?${qs}`, {
-                                method: 'DELETE',
-                            });
-
-                            if (!res.ok) {
-                                const err = await res.json().catch(() => ({}));
-                                throw new Error(err.error || 'Delete failed');
-                            }
+                            const form = new FormData();
+                            form.set('teamId', String(team.id));
+                            form.set('clientId', String(selectedClient.client_id));
+                            form.set('fileName', it.name);
+                            const result = await deleteDocumentByPathAction(form);
+                            if (!result.ok) throw new Error(result.error || 'Delete failed');
                         } catch (e) {
                             // rollback on failure
                             setItems(prev);
