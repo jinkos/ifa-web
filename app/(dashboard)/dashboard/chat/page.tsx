@@ -1,5 +1,5 @@
 "use client";
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useSelectedClient } from '../SelectedClientContext';
 import { useTeam } from '../TeamContext';
 import { Textarea } from '@/components/ui/textarea';
@@ -12,8 +12,15 @@ export default function ChatPage() {
   const { team } = useTeam();
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.scrollTop = textareaRef.current.scrollHeight;
+    }
+  }, [answer]);
 
   async function onAsk(e: React.FormEvent) {
     e.preventDefault();
@@ -49,7 +56,13 @@ export default function ChatPage() {
       <div className="space-y-3">
         <div>
           <label className="block mb-1 text-sm text-muted-foreground">Answer</label>
-          <Textarea value={answer} readOnly placeholder="Server answers will appear here" />
+          <Textarea
+            value={answer}
+            readOnly
+            placeholder="Server answers will appear here"
+            ref={textareaRef}
+            className="min-h-[240px]"
+          />
         </div>
 
         <form onSubmit={onAsk} className="flex items-center gap-2">
