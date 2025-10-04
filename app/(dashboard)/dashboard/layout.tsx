@@ -16,6 +16,7 @@ export default function DashboardLayout({
     { href: '/dashboard/clients', label: 'Clients' },
     { href: '/dashboard/documents', label: 'Documents' },
     { href: '/dashboard/chat', label: 'Chat' },
+    { href: '/dashboard/identity', label: 'Identity' },
     { href: '/dashboard/summary', label: 'Summary' },
     { href: '/dashboard/planning', label: 'Planning' },
     { href: '/dashboard/settings', label: 'Settings' },

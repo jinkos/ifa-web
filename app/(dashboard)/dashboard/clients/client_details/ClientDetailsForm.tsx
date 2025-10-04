@@ -118,18 +118,6 @@ export default function ClientDetailsForm({ clientId }: { clientId: string }) {
               <Input id="email" name="email" type="email" placeholder="Client Email" defaultValue={client?.email || ''} />
             </div>
             <div>
-              <Label htmlFor="address1" className="mb-2">Address Line 1</Label>
-              <Input id="address1" name="address1" type="text" placeholder="Address Line 1" defaultValue={client?.address1 || ''} />
-            </div>
-            <div>
-              <Label htmlFor="address2" className="mb-2">Address Line 2</Label>
-              <Input id="address2" name="address2" type="text" placeholder="Address Line 2" defaultValue={client?.address2 || ''} />
-            </div>
-            <div>
-              <Label htmlFor="postcode" className="mb-2">Postcode</Label>
-              <Input id="postcode" name="postcode" type="text" placeholder="Postcode" defaultValue={client?.postcode || ''} />
-            </div>
-            <div>
               <Label htmlFor="mobile" className="mb-2">Mobile</Label>
               <Input id="mobile" name="mobile" type="text" placeholder="Mobile Number" defaultValue={client?.mobile || ''} />
             </div>
