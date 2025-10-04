@@ -24,9 +24,18 @@ export async function GET(req: NextRequest) {
   const prefix = folderPrefix(teamId, clientId);
   const { data, error } = await supabase.storage.from(IFA_DOCS_BUCKET).list(prefix);
     if (error) throw error;
+    // Exclude all folders; include only files
+    const items = (Array.isArray(data) ? data : [])
+      .filter((entry: any) => {
+        // Prefer explicit type if available
+        if (entry?.type) return entry.type === 'file';
+        // Fallbacks for older SDKs: exclude trailing-slash names and entries without file-like metadata
+        const name: string = entry?.name ?? '';
+        if (name.endsWith('/')) return false;
+        return Boolean(entry?.id || entry?.metadata?.size || entry?.metadata?.mimetype);
+      })
+      .map((entry: any) => entry.name);
 
-    // Generate signed URLs for each file (valid for 1 hour)
-    const items = (data || []).map((f) => f.name);
     const result: { name: string; url: string }[] = [];
     for (const name of items) {
       const path = `${prefix}/${name}`;
