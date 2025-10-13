@@ -4,7 +4,9 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import Field from '@/components/ui/form/Field';
+import FormGrid from '@/components/ui/form/FormGrid';
+import FormSection from '@/components/ui/form/FormSection';
 
 type ClientDetails = {
   client_id?: number;
@@ -108,23 +110,24 @@ export default function ClientDetailsForm({ clientId }: { clientId: string }) {
           <CardTitle>{isNew ? 'Create a new client' : 'Edit client details'}</CardTitle>
         </CardHeader>
         <CardContent>
-          <form className="space-y-4" onSubmit={handleSubmit}>
-            <div>
-              <Label htmlFor="name" className="mb-2">Name</Label>
-              <Input id="name" name="name" type="text" placeholder="Client Name" defaultValue={client?.name || ''} required />
-            </div>
-            <div>
-              <Label htmlFor="email" className="mb-2">Email</Label>
-              <Input id="email" name="email" type="email" placeholder="Client Email" defaultValue={client?.email || ''} />
-            </div>
-            <div>
-              <Label htmlFor="mobile" className="mb-2">Mobile</Label>
-              <Input id="mobile" name="mobile" type="text" placeholder="Mobile Number" defaultValue={client?.mobile || ''} />
-            </div>
-            <div>
-              <Label htmlFor="landline" className="mb-2">Landline</Label>
-              <Input id="landline" name="landline" type="text" placeholder="Landline Number" defaultValue={client?.landline || ''} />
-            </div>
+          <form className="space-y-6" onSubmit={handleSubmit}>
+            <FormSection>
+              <FormGrid colsMd={2}>
+                <Field label="Name">
+                  <Input name="name" type="text" placeholder="Client Name" defaultValue={client?.name || ''} required />
+                </Field>
+                <Field label="Email">
+                  <Input name="email" type="email" placeholder="Client Email" defaultValue={client?.email || ''} />
+                </Field>
+                <Field label="Mobile">
+                  <Input name="mobile" type="text" placeholder="Mobile Number" defaultValue={client?.mobile || ''} />
+                </Field>
+                <Field label="Landline">
+                  <Input name="landline" type="text" placeholder="Landline Number" defaultValue={client?.landline || ''} />
+                </Field>
+              </FormGrid>
+            </FormSection>
+
             <div>
               <button type="submit" className="bg-orange-500 hover:bg-orange-600 text-white font-medium py-2 px-4 rounded">
                 {isNew ? 'Create Client' : 'Update Client'}
