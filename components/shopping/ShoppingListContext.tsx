@@ -86,7 +86,23 @@ export function ShoppingListProvider({ children }: { children: React.ReactNode }
 
 export function useShoppingList() {
   const ctx = useContext(ShoppingCtx);
-  if (!ctx) throw new Error('useShoppingList must be used within ShoppingListProvider');
+  if (!ctx) {
+    // When used outside of provider (for example during server prerender), return a safe no-op API.
+    // This prevents runtime errors while allowing components to render server-side.
+    return {
+      list: () => [] as ShoppingItem[],
+      add: () => undefined,
+      remove: () => undefined,
+      clear: () => undefined,
+      exists: () => false,
+    } as {
+      list: () => ShoppingItem[];
+      add: (p: Omit<ShoppingItem, 'id' | 'createdAt'>) => void;
+      remove: (id: string) => void;
+      clear: () => void;
+      exists: (fieldId: string) => boolean;
+    };
+  }
   return ctx as {
     list: () => ShoppingItem[];
     add: (p: Omit<ShoppingItem, 'id' | 'createdAt'>) => void;
