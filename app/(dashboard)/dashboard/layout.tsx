@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { SelectedClientProvider } from './SelectedClientContext';
 import { TeamProvider } from './TeamContext';
+import { ShoppingListProvider } from '@/components/shopping/ShoppingListContext';
 
 export default function DashboardLayout({
   children,
@@ -17,15 +18,17 @@ export default function DashboardLayout({
     { href: '/dashboard/documents', label: 'Documents' },
     { href: '/dashboard/chat', label: 'Chat' },
     { href: '/dashboard/identity', label: 'Identity' },
-    { href: '/dashboard/summary', label: 'Summary' },
+      { href: '/dashboard/summary', label: 'Summary' },
+      { href: '/dashboard/shopping', label: 'Shopping list' },
     { href: '/dashboard/planning', label: 'Planning' },
     { href: '/dashboard/settings', label: 'Settings' },
   ];
 
   return (
     <SelectedClientProvider>
-      <TeamProvider>
-      <div className="flex flex-col min-h-[calc(100dvh-68px)] max-w-7xl mx-auto w-full">
+  <TeamProvider>
+  <ShoppingListProvider>
+  <div className="flex flex-col min-h-[calc(100dvh-68px)] max-w-7xl mx-auto w-full">
         {/* Top horizontal menu */}
         <nav className="w-full border-b bg-white dark:bg-black">
           <ul className="flex flex-row justify-start items-center gap-2 px-4 py-2 overflow-x-auto">
@@ -53,6 +56,7 @@ export default function DashboardLayout({
         {/* Main content */}
         <main className="flex-1 overflow-y-auto p-0 lg:p-4">{children}</main>
       </div>
+      </ShoppingListProvider>
       </TeamProvider>
     </SelectedClientProvider>
   );
