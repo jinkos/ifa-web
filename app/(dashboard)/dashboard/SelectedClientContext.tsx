@@ -33,6 +33,27 @@ export function SelectedClientProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Verify the selected client still exists server-side; if not, clear it
+  useEffect(() => {
+    let ignore = false;
+    const verify = async () => {
+      if (!selectedClient?.client_id) return;
+      try {
+        const res = await fetch(`/api/clients/${selectedClient.client_id}`, { cache: 'no-store' });
+        if (!res.ok && !ignore) {
+          setSelectedClientState(null);
+          localStorage.removeItem('selected_client');
+        }
+      } catch {
+        // Network errors: do not aggressively clear; user can retry operations that will re-verify
+      }
+    };
+    verify();
+    return () => {
+      ignore = true;
+    };
+  }, [selectedClient?.client_id]);
+
   // When selectedClient changes, persist id to localStorage
 
   useEffect(() => {

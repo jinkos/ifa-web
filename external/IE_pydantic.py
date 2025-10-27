@@ -4,21 +4,6 @@ from pydantic import BaseModel, Field
 
 # Enums for various statuses and types
 
-class HealthStatus(str, Enum):
-    good = "good"
-    some_problems = "some_problems"
-    mostly_good = "mostly_good"
-    serious_problems = "serious_problems"
-
-class MaritalStatus(str, Enum):
-    single = "single"
-    married = "married"
-    civil_partnership = "civil_partnership"
-    divorced = "divorced"
-    widowed = "widowed"
-    separated = "separated"
-    cohabiting = "cohabiting"
-    other = "other"
 
 class DebtType(str, Enum):
     mortgage = "mortgage"
@@ -72,7 +57,7 @@ class CashflowItem(BaseModel):
     amount: Optional[float] = Field(..., description="amount per frequency")
     currency: Optional[str] = Field("GBP", description="ISO 4217, e.g., 'GBP'")
     frequency: Optional[FrequencyType] = Field(..., description="e.g., 'monthly', 'annually', 'weekly'")
-    is_gross: Optional[bool] = Field(None, description="True if gross (pre-tax), False if net (post-tax)")
+    is_gross: Optional[bool] = Field(True, description="True if gross (pre-tax), False if net (post-tax)")
 
 class ValueWithCurrency(BaseModel):
     description: Optional[str] = Field(..., description="e.g., House, Pension with NHS, Mortgage borrowing")
@@ -111,19 +96,27 @@ class PropertyHolding(BaseModel):
     rental_income: Optional[CashflowItem] = None
     expenses: Optional[List[CashflowItem]] = None
 
+class EmploymentStatus(str, Enum):
+    employed = "employed"
+    self_employed = "self_employed"
+    retried = "retried"
+    full_time_education = "full_time_education"
+    independent_means = "independent_means"
+    homemaker = "homemaker"
+    other = "other"
+
+
 # Main person model
 class PersonSummary(BaseModel):
 
-    # Family
-    marital_status: Optional[MaritalStatus] = None
-
-    # Status
-    health_status: Optional[HealthStatus] = None
-    smoker: Optional[bool] = None
 
     # Retirement and Goals
     target_retirement_age: Optional[int] = None
     target_retirement_income: Optional[CashflowItem] = Field(None, description="Amount in today's money")
+
+    # Work
+    employment_status: Optional[EmploymentStatus] = None
+    occupation: Optional[str] = None
 
     # Financials
     current_income: List[CashflowItem] = Field(default_factory=list)

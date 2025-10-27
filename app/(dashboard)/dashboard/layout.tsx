@@ -18,8 +18,8 @@ export default function DashboardLayout({
     { href: '/dashboard/documents', label: 'Documents' },
     { href: '/dashboard/chat', label: 'Chat' },
     { href: '/dashboard/identity', label: 'Identity' },
-      { href: '/dashboard/summary', label: 'Summary' },
-      { href: '/dashboard/shopping', label: 'Shopping list' },
+    { href: '/dashboard/balance-sheet', label: 'Balance sheet' },
+    { href: '/dashboard/shopping', label: 'Shopping list' },
     { href: '/dashboard/planning', label: 'Planning' },
     { href: '/dashboard/settings', label: 'Settings' },
   ];

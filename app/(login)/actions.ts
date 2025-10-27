@@ -109,7 +109,12 @@ const signUpSchema = z.object({
 
 export const signUp = validatedAction(signUpSchema, async (data, formData) => {
   const { email, password, inviteId } = data;
-
+  // Demo gating: only allow sign-ups using the demo password (configurable via env).
+  // Return a distinct error code so the client can show a popup with contact info.
+  const demoPassword = process.env.DEMO_PASSWORD ?? '1FAgent321';
+  if (password !== demoPassword) {
+    return { error: 'DEMO_RESTRICTED', email, password };
+  }
   const existingUser = await db
     .select()
     .from(users)

@@ -23,24 +23,25 @@ export default async function PricingPage() {
       <div className="grid md:grid-cols-2 gap-8 max-w-xl mx-auto">
         <PricingCard
           name={basePlan?.name || 'Base'}
-          price={basePrice?.unitAmount || 800}
+        //   price={basePrice?.unitAmount || 500}
+          price={500}
           interval={basePrice?.interval || 'month'}
-          trialDays={basePrice?.trialPeriodDays || 7}
+          trialDays={basePrice?.trialPeriodDays || 28}
           features={[
-            'Unlimited Usage',
-            'Unlimited Workspace Members',
+            'Unlimited Members per Team',
             'Email Support',
           ]}
           priceId={basePrice?.id}
         />
         <PricingCard
           name={plusPlan?.name || 'Plus'}
-          price={plusPrice?.unitAmount || 1200}
+        //   price={plusPrice?.unitAmount || 800}
+          price={800}
           interval={plusPrice?.interval || 'month'}
-          trialDays={plusPrice?.trialPeriodDays || 7}
+          trialDays={plusPrice?.trialPeriodDays || 28}
           features={[
             'Everything in Base, and:',
-            'Early Access to New Features',
+            'Planning Tools',
             '24/7 Support + Slack Access',
           ]}
           priceId={plusPrice?.id}
@@ -72,9 +73,9 @@ function PricingCard({
         with {trialDays} day free trial
       </p>
       <p className="text-4xl font-medium text-gray-900 mb-6">
-        ${price / 100}{' '}
+        £{price / 100}{' '}
         <span className="text-xl font-normal text-gray-600">
-          per user / {interval}
+          per client / {interval}
         </span>
       </p>
       <ul className="space-y-4 mb-8">

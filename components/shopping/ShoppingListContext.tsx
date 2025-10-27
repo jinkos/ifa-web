@@ -5,10 +5,11 @@ import { useSelectedClient } from '@/app/(dashboard)/dashboard/SelectedClientCon
 
 type ShoppingItem = {
   id: string;
-  fieldId: string;
+  // Section-based shopping only (legacy field-based entries removed)
+  sectionKey: string;
   label: string;
+  // optional human-friendly section name
   section?: string;
-  path?: string;
   createdAt: string;
   meta?: Record<string, any>;
 };
@@ -17,7 +18,8 @@ type State = ShoppingItem[];
 
 type Action =
   | { type: 'init'; items: ShoppingItem[] }
-  | { type: 'add'; item: Omit<ShoppingItem, 'id' | 'createdAt'> }
+  | { type: 'addSection'; item: { sectionKey: string; label: string; section?: string; meta?: Record<string, any> } }
+  | { type: 'removeBySection'; sectionKey: string }
   | { type: 'remove'; id: string }
   | { type: 'clear' };
 
@@ -36,12 +38,17 @@ function reducer(state: State, action: Action): State {
   switch (action.type) {
     case 'init':
       return action.items;
-    case 'add': {
+    case 'addSection': {
       const newItem: ShoppingItem = { id: makeId(), createdAt: new Date().toISOString(), ...action.item } as ShoppingItem;
+      // avoid duplicates by sectionKey
+      const exists = state.some((s) => s.sectionKey === action.item.sectionKey);
+      if (exists) return state;
       return [...state, newItem];
     }
     case 'remove':
       return state.filter((i) => i.id !== action.id);
+    case 'removeBySection':
+      return state.filter((i) => i.sectionKey !== action.sectionKey);
     case 'clear':
       return [];
     default:
@@ -56,10 +63,60 @@ export function ShoppingListProvider({ children }: { children: React.ReactNode }
 
   const [state, dispatch] = useReducer(reducer, [] as State);
 
+  // One-time purge of legacy/local stale shopping keys in localStorage
+  useEffect(() => {
+    try {
+      const ls = globalThis.localStorage;
+      if (!ls) return;
+      const keysToDelete: string[] = [];
+      for (let i = 0; i < ls.length; i++) {
+        const key = ls.key(i);
+        if (!key) continue;
+        // Remove any old prefix used historically
+        if (key.startsWith('shopping:')) {
+          keysToDelete.push(key);
+          continue;
+        }
+        if (!key.startsWith('shoppingList:')) continue;
+        const raw = ls.getItem(key);
+        if (!raw) { keysToDelete.push(key); continue; }
+        try {
+          const parsed = JSON.parse(raw);
+          if (!Array.isArray(parsed)) { keysToDelete.push(key); continue; }
+          const hasSection = parsed.some((x: any) => typeof x?.sectionKey === 'string');
+          const hasLegacy = parsed.some((x: any) => (x && (typeof x.fieldId === 'string' || 'path' in x)));
+          // Purge keys that are clearly legacy-only or malformed
+          if (!hasSection || hasLegacy) {
+            keysToDelete.push(key);
+          }
+        } catch {
+          keysToDelete.push(key);
+        }
+      }
+      keysToDelete.forEach((k) => {
+        try { ls.removeItem(k); } catch {}
+      });
+    } catch {}
+  }, []);
+
   useEffect(() => {
     try {
       const raw = globalThis.localStorage?.getItem(storageKey);
-      if (raw) dispatch({ type: 'init', items: JSON.parse(raw) });
+      if (raw) {
+        const parsed = JSON.parse(raw) as any[];
+        // Only keep well-formed section items; drop legacy field-level entries
+        const items: ShoppingItem[] = parsed
+          .filter((it) => typeof it?.sectionKey === 'string' && typeof it?.label === 'string')
+          .map((it) => ({
+            id: typeof it.id === 'string' ? it.id : makeId(),
+            createdAt: typeof it.createdAt === 'string' ? it.createdAt : new Date().toISOString(),
+            sectionKey: it.sectionKey,
+            label: it.label,
+            section: typeof it.section === 'string' ? it.section : undefined,
+            meta: typeof it.meta === 'object' && it.meta ? it.meta : {},
+          }));
+        dispatch({ type: 'init', items });
+      }
     } catch (e) {
       // ignore
     }
@@ -75,10 +132,12 @@ export function ShoppingListProvider({ children }: { children: React.ReactNode }
 
   const api = useMemo(() => ({
     list: () => state,
-    add: (payload: Omit<ShoppingItem, 'id' | 'createdAt'>) => dispatch({ type: 'add', item: payload }),
     remove: (id: string) => dispatch({ type: 'remove', id }),
     clear: () => dispatch({ type: 'clear' }),
-    exists: (fieldId: string) => state.some((s) => s.fieldId === fieldId),
+    // New section APIs
+    addSection: (sectionKey: string, label: string, section?: string, meta?: Record<string, any>) => dispatch({ type: 'addSection', item: { sectionKey, label, section, meta } }),
+    removeSection: (sectionKey: string) => dispatch({ type: 'removeBySection', sectionKey }),
+    existsSection: (sectionKey: string) => state.some((s) => s.sectionKey === sectionKey),
   }), [state]);
 
   return <ShoppingCtx.Provider value={api}>{children}</ShoppingCtx.Provider>;
@@ -91,23 +150,26 @@ export function useShoppingList() {
     // This prevents runtime errors while allowing components to render server-side.
     return {
       list: () => [] as ShoppingItem[],
-      add: () => undefined,
       remove: () => undefined,
       clear: () => undefined,
-      exists: () => false,
+      addSection: () => undefined,
+      removeSection: () => undefined,
+      existsSection: () => false,
     } as {
       list: () => ShoppingItem[];
-      add: (p: Omit<ShoppingItem, 'id' | 'createdAt'>) => void;
       remove: (id: string) => void;
       clear: () => void;
-      exists: (fieldId: string) => boolean;
+      addSection: (sectionKey: string, label: string, section?: string, meta?: Record<string, any>) => void;
+      removeSection: (sectionKey: string) => void;
+      existsSection: (sectionKey: string) => boolean;
     };
   }
   return ctx as {
     list: () => ShoppingItem[];
-    add: (p: Omit<ShoppingItem, 'id' | 'createdAt'>) => void;
     remove: (id: string) => void;
     clear: () => void;
-    exists: (fieldId: string) => boolean;
+    addSection: (sectionKey: string, label: string, section?: string, meta?: Record<string, any>) => void;
+    removeSection: (sectionKey: string) => void;
+    existsSection: (sectionKey: string) => boolean;
   };
 }
