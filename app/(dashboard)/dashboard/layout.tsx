@@ -16,7 +16,7 @@ export default function DashboardLayout({
   const tabs = [
     { href: '/dashboard/clients', label: 'Clients' },
     { href: '/dashboard/documents', label: 'Documents' },
-    { href: '/dashboard/chat', label: 'Chat' },
+    // { href: '/dashboard/chat', label: 'Chat' }, // temporarily hidden
     { href: '/dashboard/identity', label: 'Identity' },
     { href: '/dashboard/balance-sheet', label: 'Balance sheet' },
     { href: '/dashboard/shopping', label: 'Shopping list' },
