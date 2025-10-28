@@ -4,7 +4,6 @@ import { cn } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
 import LabelValue from './LabelValue';
 import { Button } from '@/components/ui/button';
-import { useShoppingList } from '@/components/shopping/ShoppingListContext';
 
 type Incoming = {
   // allow any incoming value (string/number/object) and stringify for display
@@ -17,7 +16,6 @@ export default function Field({
   id,
   label,
   fieldName,
-  showShoppingAction = false,
   children,
   incoming,
   hint,
@@ -27,7 +25,6 @@ export default function Field({
   id?: string;
   label?: React.ReactNode;
   fieldName?: string;
-  showShoppingAction?: boolean;
   children: React.ReactNode;
   incoming?: Incoming | null;
   hint?: React.ReactNode;
@@ -36,7 +33,6 @@ export default function Field({
 }) {
   const reactId = useId();
   // Prefer an explicit id. If not provided, derive a stable id from fieldName or label text
-  // so shopping list membership persists across navigations. Fall back to React useId.
   const makeSlug = (s: string) =>
     s
       .toString()
@@ -48,8 +44,6 @@ export default function Field({
 
   const stableBase = fieldName ?? (typeof label === 'string' ? label : undefined);
   const fieldId = id ?? (stableBase ? `f-${makeSlug(stableBase)}` : `f-${reactId}`);
-  const shopping = useShoppingList();
-  const alreadyAdded = shopping.exists(fieldId);
 
   // If the child is a single React element and doesn't have an id prop, clone it with the generated id.
   let renderedChildren: React.ReactNode = children;
@@ -64,25 +58,7 @@ export default function Field({
   return (
     <div data-field-id={fieldId} className={cn('', className)}>
       {label ? (
-        <LabelValue label={<Label htmlFor={fieldId}>{label}{showShoppingAction && (
-          <button
-            type="button"
-            aria-pressed={alreadyAdded}
-            className={"ml-2 text-xs transition " + (alreadyAdded ? 'text-amber-700' : 'text-slate-500 hover:text-slate-700')}
-            onClick={(e) => {
-              e.preventDefault();
-              if (alreadyAdded) {
-                const item = shopping.list().find((s) => s.fieldId === fieldId);
-                if (item) shopping.remove(item.id);
-                return;
-              }
-              shopping.add({ fieldId, label: fieldName ?? (typeof label === 'string' ? label : String(fieldName ?? 'Field')), section: undefined, path: undefined, meta: {} });
-            }}
-            title={alreadyAdded ? 'Remove from shopping list' : 'Add to shopping list'}
-          >
-            {alreadyAdded ? '−' : '＋'}
-          </button>
-        )}</Label>}>
+        <LabelValue label={<Label htmlFor={fieldId}>{label}</Label>}>
           {renderedChildren}
         </LabelValue>
       ) : (

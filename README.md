@@ -111,3 +111,12 @@ While this template is intentionally minimal and to be used as a learning resour
 - https://makerkit.dev
 - https://zerotoshipped.com
 - https://turbostarter.dev
+
+## Data model migration (Summary → Balance)
+
+This project migrated from a legacy PersonSummary model to BalancePersonSummary.
+
+- Storage/API: Use `/api/balance` for load/save. The legacy `/api/summary` now returns HTTP 410 Gone.
+- Extraction: Use `extract_balance` via `/api/docs/extract_balance`. The legacy `/api/docs/extract_summary` returns HTTP 410 Gone.
+- Client code: Prefer `loadBalanceSheet`, `saveBalanceSheet`, and `extractBalance` from `lib/api/balance`.
+- Legacy summary types, hooks, and helpers were removed or stubbed. If you still import from `@/lib/types/summary` or `@/lib/api/summary`, migrate to the balance equivalents.

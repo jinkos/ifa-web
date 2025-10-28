@@ -2,13 +2,10 @@
 import { useState, DragEvent, useRef } from "react";
 import { useSelectedClient } from '../SelectedClientContext';
 import { useTeam } from '../TeamContext';
-import { createClient } from '@supabase/supabase-js';
+import { getBrowserClient } from '@/lib/supabase/client.browser';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, // ok for PoC; signed upload doesn't require RLS
-  { auth: { persistSession: false } }
-);
+// Reuse a single browser Supabase client to avoid multiple GoTrue instances in the page
+const supabase = getBrowserClient();
 
 async function sha256(file: File) {
     const buf = await file.arrayBuffer();

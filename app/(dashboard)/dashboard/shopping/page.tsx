@@ -1,6 +1,6 @@
 "use client";
 import React from 'react';
-import ShoppingListTab from '../summary/ShoppingListTab';
+import ShoppingListTab from '@/components/shopping/ShoppingListTab';
 
 export default function ShoppingPage() {
   return (

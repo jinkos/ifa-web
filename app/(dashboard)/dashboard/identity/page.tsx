@@ -3,10 +3,13 @@ import { useEffect, useState } from 'react';
 import { useSelectedClient } from '../SelectedClientContext';
 import { useTeam } from '../TeamContext';
 import ActionBar from '@/components/action-bar';
-import type { IdentityState, Gender, EmploymentStatus } from '@/lib/types/identity';
+import type { IdentityState, Gender } from '@/lib/types/identity';
 import { extractIdentity, loadIdentity, saveIdentity } from '@/lib/api/identity';
+import { mergeIdentityFields, isBlank } from '@/lib/utils';
 import AddressSection from './components/AddressSection';
 import DemographicsSection from './components/DemographicsSection';
+import PersonalSection from './components/PersonalSection';
+import NationalIdentitySection from './components/NationalIdentitySection';
 import { useAutosave } from '@/lib/hooks/useAutosave';
 
 export default function IdentityPage() {
@@ -20,10 +23,12 @@ export default function IdentityPage() {
     postcode: '',
     date_of_birth: '',
     gender: '',
+    marital_status: null,
     nationality: '',
     nationality2: '',
-    employment_status: '',
-    occupation: '',
+    n_i_number: '',
+    health_status: null,
+    smoker: null,
   });
   const [loading, setLoading] = useState<boolean>(false);
   const [saving, setSaving] = useState<boolean>(false);
@@ -51,10 +56,12 @@ export default function IdentityPage() {
             postcode: (data as any)?.postcode ?? '',
             date_of_birth: (data as any)?.date_of_birth ?? '',
             gender: ((data as any)?.gender as Gender | undefined) ?? '',
+            marital_status: (data as any)?.marital_status ?? null,
             nationality: (data as any)?.nationality ?? '',
             nationality2: (data as any)?.nationality2 ?? '',
-            employment_status: ((data as any)?.employment_status as EmploymentStatus | undefined) ?? '',
-            occupation: (data as any)?.occupation ?? '',
+            n_i_number: (data as any)?.n_i_number ?? '',
+            health_status: (data as any)?.health_status ?? null,
+            smoker: (data as any)?.smoker ?? null,
           });
           setBase({
             address1: data.address1 ?? '',
@@ -63,10 +70,12 @@ export default function IdentityPage() {
             postcode: (data as any)?.postcode ?? '',
             date_of_birth: (data as any)?.date_of_birth ?? '',
             gender: ((data as any)?.gender as Gender | undefined) ?? '',
+            marital_status: (data as any)?.marital_status ?? null,
             nationality: (data as any)?.nationality ?? '',
             nationality2: (data as any)?.nationality2 ?? '',
-            employment_status: ((data as any)?.employment_status as EmploymentStatus | undefined) ?? '',
-            occupation: (data as any)?.occupation ?? '',
+            n_i_number: (data as any)?.n_i_number ?? '',
+            health_status: (data as any)?.health_status ?? null,
+            smoker: (data as any)?.smoker ?? null,
           });
           setIncoming(null);
         }
@@ -160,8 +169,12 @@ export default function IdentityPage() {
               setExtractError(null);
               try {
                 const payload = await extractIdentity<IdentityState>(team.id, selectedClient.client_id);
-                // Build an incoming diff of only changed fields compared to current state
-                const diff: Partial<IdentityState> = {};
+                // Auto-merge by filling only blanks from payload
+                const merged = mergeIdentityFields(state, payload);
+                setState(merged);
+
+                // Build a suggestion list only for conflicting non-blank values
+                const suggest: Partial<IdentityState> = {};
                 const keys: (keyof IdentityState)[] = [
                   'address1',
                   'address2',
@@ -169,20 +182,23 @@ export default function IdentityPage() {
                   'postcode',
                   'date_of_birth',
                   'gender',
+                  'marital_status',
                   'nationality',
                   'nationality2',
-                  'employment_status',
-                  'occupation',
+                  'n_i_number',
+                  'health_status',
+                  'smoker',
                 ];
                 for (const k of keys) {
-                  const incomingVal = (payload as any)?.[k];
-                  // Normalize undefined to empty string for string fields
-                  const normalizedIncoming = incomingVal ?? '';
-                  if ((state as any)[k] !== normalizedIncoming) {
-                    (diff as any)[k] = normalizedIncoming;
+                  const cur = (state as any)[k];
+                  const inc = (payload as any)?.[k];
+                  if (typeof inc === 'undefined') continue; // not present in payload
+                  // Suggest only when both are non-blank and different
+                  if (!isBlank(cur) && !isBlank(inc) && cur !== inc) {
+                    (suggest as any)[k] = inc;
                   }
                 }
-                setIncoming(diff);
+                setIncoming(Object.keys(suggest).length ? suggest : null);
               } catch (e: any) {
                 setExtractError(e.message || 'Extract failed');
                 setTimeout(() => setExtractError(null), 4000);
@@ -190,6 +206,42 @@ export default function IdentityPage() {
                 setExtracting(false);
               }
             }}
+          />
+          {/* Personal Information */}
+          <PersonalSection
+            value={{
+              date_of_birth: state.date_of_birth,
+              gender: state.gender,
+              marital_status: state.marital_status,
+            }}
+            update={(patch) => setState((prev) => ({ ...prev, ...patch }))}
+            suggestions={incoming ? {
+              date_of_birth: incoming.date_of_birth,
+              gender: incoming.gender,
+              marital_status: incoming.marital_status,
+            } : undefined}
+            onAccept={(key) => {
+              if (!incoming) return;
+              const val = (incoming as any)[key];
+              if (typeof val !== 'undefined') {
+                setState((prev) => ({ ...prev, [key]: val } as IdentityState));
+              }
+              setIncoming((prev) => {
+                if (!prev) return prev;
+                const next = { ...prev } as any;
+                delete next[key];
+                return next as Partial<IdentityState>;
+              });
+            }}
+            onReject={(key) => {
+              setIncoming((prev) => {
+                if (!prev) return prev;
+                const next = { ...prev } as any;
+                delete next[key];
+                return next as Partial<IdentityState>;
+              });
+            }}
+            loading={loading}
           />
           {/* Address */}
           <AddressSection
@@ -224,24 +276,52 @@ export default function IdentityPage() {
             }}
             loading={loading}
           />
-          {/* Demographics */}
-          <DemographicsSection
+          {/* National Identity */}
+          <NationalIdentitySection
             value={{
-              date_of_birth: state.date_of_birth,
-              gender: state.gender,
               nationality: state.nationality,
               nationality2: state.nationality2,
-              employment_status: state.employment_status,
-              occupation: state.occupation,
+              n_i_number: state.n_i_number,
             }}
             update={(patch) => setState((prev) => ({ ...prev, ...patch }))}
             suggestions={incoming ? {
-              date_of_birth: incoming.date_of_birth,
-              gender: incoming.gender,
               nationality: incoming.nationality,
               nationality2: incoming.nationality2,
-              employment_status: incoming.employment_status,
-              occupation: incoming.occupation,
+              n_i_number: incoming.n_i_number,
+            } : undefined}
+            onAccept={(key) => {
+              if (!incoming) return;
+              const val = (incoming as any)[key];
+              if (typeof val !== 'undefined') {
+                setState((prev) => ({ ...prev, [key]: val } as IdentityState));
+              }
+              setIncoming((prev) => {
+                if (!prev) return prev;
+                const next = { ...prev } as any;
+                delete next[key];
+                return next as Partial<IdentityState>;
+              });
+            }}
+            onReject={(key) => {
+              setIncoming((prev) => {
+                if (!prev) return prev;
+                const next = { ...prev } as any;
+                delete next[key];
+                return next as Partial<IdentityState>;
+              });
+            }}
+            loading={loading}
+          />
+          {/* Health and Lifestyle */}
+          <DemographicsSection
+            value={{
+              health_status: state.health_status,
+              smoker: state.smoker,
+            }}
+            update={(patch) => setState((prev) => ({ ...prev, ...patch }))}
+            suggestions={incoming ? {
+              health_status: incoming.health_status,
+              smoker: incoming.smoker,
             } : undefined}
             onAccept={(key) => {
               if (!incoming) return;

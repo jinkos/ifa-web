@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { useActionState } from 'react';
+import { useEffect, useState } from 'react';
+import DemoModal from '@/components/ui/demo-modal';
 import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,6 +21,14 @@ export function Login({ mode = 'signin' }: { mode?: 'signin' | 'signup' }) {
     mode === 'signin' ? signIn : signUp,
     { error: '' }
   );
+
+  const [showDemoModal, setShowDemoModal] = useState(false);
+
+  useEffect(() => {
+    if (mode === 'signup' && state?.error === 'DEMO_RESTRICTED') {
+      setShowDemoModal(true);
+    }
+  }, [state?.error, mode]);
 
   return (
     <div className="min-h-[100dvh] flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 bg-gray-50">
@@ -108,6 +118,13 @@ export function Login({ mode = 'signin' }: { mode?: 'signin' | 'signup' }) {
             </Button>
           </div>
         </form>
+
+        <DemoModal
+          open={showDemoModal}
+          onClose={() => setShowDemoModal(false)}
+          title="Demo access by invitation only"
+          contactEmail="ifagent@everard.me.uk"
+        />
 
         <div className="mt-6">
           <div className="relative">

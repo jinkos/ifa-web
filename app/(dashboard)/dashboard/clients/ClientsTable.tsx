@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Trash2, Pencil } from 'lucide-react';
 import { Check } from 'lucide-react';
 import { useState } from 'react';
+import DemoModal from '@/components/ui/demo-modal';
+import ConfirmModal from '@/components/ui/confirm-modal';
 import { useSelectedClient } from '../SelectedClientContext';
 import type { Client } from '@/lib/types/client';
 
@@ -14,22 +16,52 @@ export function ClientsTable({ clients: initialClients }: { clients: Client[] })
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const { selectedClient, setSelectedClient } = useSelectedClient();
 
-  const handleDelete = async (clientId: number) => {
-    if (!confirm('Are you sure you want to delete this client? This action cannot be undone.')) return;
+  // show confirm modal when user requests deletion
+  const [confirmModal, setConfirmModal] = useState<{ open: boolean; clientId?: number; name?: string }>({ open: false });
+
+  const handleDelete = (clientId: number, name?: string) => {
+    setConfirmModal({ open: true, clientId, name });
+  };
+
+  const performDelete = async (clientId?: number) => {
+    if (!clientId) return;
+    setConfirmModal({ open: false });
     setDeletingId(clientId);
     try {
       const res = await fetch(`/api/clients/${clientId}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to delete client');
       setClients(clients.filter((c: Client) => c.client_id !== clientId));
+      // If the deleted client was selected, clear the selection to avoid stale localStorage state
+      if (selectedClient?.client_id === clientId) {
+        setSelectedClient(null);
+      }
     } catch (e) {
-      alert('Failed to delete client.');
+      setErrorModal({ open: true, message: 'Failed to delete client.' });
     } finally {
       setDeletingId(null);
     }
   };
 
+  const [errorModal, setErrorModal] = useState<{ open: boolean; message?: string }>({ open: false });
+
   return (
     <div className="overflow-x-auto">
+      <DemoModal open={errorModal.open} onClose={() => setErrorModal({ open: false })} title="Error">
+        {errorModal.message}
+      </DemoModal>
+      <ConfirmModal
+        open={confirmModal.open}
+        onClose={() => setConfirmModal({ open: false })}
+        onConfirm={() => performDelete(confirmModal.clientId)}
+        title="Delete client"
+        message={
+          confirmModal.name
+            ? `Are you sure you want to delete ${confirmModal.name}? This action cannot be undone.`
+            : 'Are you sure you want to delete this client? This action cannot be undone.'
+        }
+        confirmText="Delete"
+        cancelText="Cancel"
+      />
       <table className="min-w-full divide-y divide-gray-200">
         <thead>
           <tr>
@@ -68,7 +100,7 @@ export function ClientsTable({ clients: initialClients }: { clients: Client[] })
                         <Pencil className="w-4 h-4" />
                       </Button>
                     </Link>
-                    <Button size="sm" variant="ghost" onClick={() => handleDelete(client.client_id)} disabled={deletingId === client.client_id} aria-label="Delete client">
+                    <Button size="sm" variant="ghost" onClick={() => handleDelete(client.client_id, client.name)} disabled={deletingId === client.client_id} aria-label="Delete client">
                       <Trash2 className="w-4 h-4 text-red-500" />
                     </Button>
                   </td>
