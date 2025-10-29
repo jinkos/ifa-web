@@ -272,7 +272,9 @@ export default function BalanceSheetPage() {
             <span className="text-sm text-red-600">{extractError}</span>
           )}
           <button
-            className="px-3 py-1 rounded border border-gray-300 text-gray-700 bg-white hover:bg-gray-100 disabled:opacity-50"
+            className={`${(!team?.id || !selectedClient?.client_id || extracting)
+              ? 'px-4 py-2 rounded text-white bg-blue-300 cursor-not-allowed'
+              : 'px-4 py-2 rounded text-white bg-blue-600 hover:bg-blue-700'}`}
             disabled={!team?.id || !selectedClient?.client_id || extracting}
             onClick={async () => {
               if (!team?.id || !selectedClient?.client_id) return;
@@ -448,7 +450,7 @@ export default function BalanceSheetPage() {
               }
             }}
           >
-            {extracting ? 'Extracting…' : 'Extract'}
+            {extracting ? 'Extracting…' : 'Extract from Docs'}
           </button>
           <div className="text-sm text-muted-foreground">
             {saving && 'Saving...'}
