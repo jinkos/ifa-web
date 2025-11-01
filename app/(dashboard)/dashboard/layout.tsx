@@ -21,6 +21,7 @@ export default function DashboardLayout({
     { href: '/dashboard/balance-sheet', label: 'Balance sheet' },
     { href: '/dashboard/shopping', label: 'Shopping list' },
     { href: '/dashboard/planning', label: 'Planning' },
+    { href: '/dashboard/dev', label: 'Dev' },
     { href: '/dashboard/settings', label: 'Settings' },
   ];
 

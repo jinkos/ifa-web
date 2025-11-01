@@ -46,7 +46,7 @@ export const balanceSheetItemKinds: BalanceSheetItemKind[] = [
   'student_loan',
   'main_residence',
   'holiday_home',
-  'car',
+  'other_valuable_item',
   'workplace_pension',
   'defined_benefit_pension',
   'personal_pension',
@@ -71,7 +71,7 @@ export const balanceSheetAssetKinds: BalanceSheetItemKind[] = [
   'vct',
   'main_residence',
   'holiday_home',
-  'car',
+  'other_valuable_item',
 ];
 
 export const balanceSheetLiabilityKinds: BalanceSheetItemKind[] = [
@@ -155,7 +155,7 @@ export const balanceSheetLabels: Record<BalanceSheetItemKind, string> = {
   student_loan: 'Student loan',
   main_residence: 'Main residence',
   holiday_home: 'Holiday home',
-  car: 'Car',
+  other_valuable_item: 'Other valuable item',
   workplace_pension: 'Workplace pension',
   defined_benefit_pension: 'Defined benefit pension',
   personal_pension: 'Personal pension',
@@ -258,8 +258,8 @@ export const balanceSheetFieldLabels: Record<
     balance: 'Mortgage balance',
     repayment: 'Mortgage repayment',
   },
-  car: { 
-    value: 'Vehicle value',
+  other_valuable_item: { 
+    value: 'Item value',
     loan: 'Loan',
     balance: 'Loan balance',
     repayment: 'Loan repayment',

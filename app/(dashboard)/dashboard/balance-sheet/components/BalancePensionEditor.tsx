@@ -2,6 +2,7 @@
 import React from 'react';
 import Field from '@/components/ui/form/Field';
 import { Input } from '@/components/ui/input';
+import { NumberInput } from '@/components/ui/number-input';
 import type {
   PersonalBalanceSheetItem,
   BalanceFrequency,
@@ -59,20 +60,26 @@ export default function BalancePensionEditor({
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Field label="Description" className="md:col-span-2" error={descriptionError}>
           <Input
+            required
             value={item.description ?? ''}
             onChange={(e) => onChange({ ...item, description: e.target.value })}
+            onBlur={(e) => {
+              const v = (e.target.value ?? '').trim();
+              if (!v) {
+                const toTitle = (s: string) => s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+                onChange({ ...item, description: toTitle(String(item.type)) });
+              }
+            }}
           />
         </Field>
         {!isState && (
           <Field label="Pension value">
-            <Input
-              type="number"
-              inputMode="numeric"
-              value={(((item as any).ite.investment_value ?? '') as any)}
+            <NumberInput
+              value={(((item as any).ite.investment_value ?? null) as any)}
               placeholder="value"
-              onChange={(e) => {
-                const v = e.target.value === '' ? null : Math.round(Number(e.target.value));
-                onChange({ ...(item as any), ite: { ...(item as any).ite, investment_value: v } });
+              onValueChange={(v) => {
+                const val = v == null ? null : Math.round(v);
+                onChange({ ...(item as any), ite: { ...(item as any).ite, investment_value: val } });
               }}
             />
           </Field>
@@ -90,15 +97,13 @@ export default function BalancePensionEditor({
       {!isState && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Field label="Personal Contribution">
-            <Input
-              type="number"
-              inputMode="numeric"
-              value={displayContrib as any}
+            <NumberInput
+              value={(contrib!.periodic_amount ?? null) as any}
               placeholder="amount"
-              onChange={(e) => {
-                const v = e.target.value === '' ? null : Math.round(Number(e.target.value));
+              onValueChange={(v) => {
+                const val = v == null ? null : Math.round(v);
                 const cf = ensureContribution();
-                onChange({ ...(item as any), ite: { ...(item as any).ite, contribution: { ...cf, periodic_amount: v } } });
+                onChange({ ...(item as any), ite: { ...(item as any).ite, contribution: { ...cf, periodic_amount: val } } });
               }}
             />
           </Field>
@@ -141,15 +146,13 @@ export default function BalancePensionEditor({
       {!isState && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Field label="Employer Contribution">
-            <Input
-              type="number"
-              inputMode="numeric"
-              value={displayEmployer as any}
+            <NumberInput
+              value={(employer!.periodic_amount ?? null) as any}
               placeholder="amount"
-              onChange={(e) => {
-                const v = e.target.value === '' ? null : Math.round(Number(e.target.value));
+              onValueChange={(v) => {
+                const val = v == null ? null : Math.round(v);
                 const cf = ensureEmployerContribution();
-                onChange({ ...(item as any), ite: { ...(item as any).ite, employer_contribution: { ...cf, periodic_amount: v } } });
+                onChange({ ...(item as any), ite: { ...(item as any).ite, employer_contribution: { ...cf, periodic_amount: val } } });
               }}
             />
           </Field>
@@ -191,19 +194,17 @@ export default function BalancePensionEditor({
       {/* Row 4: Drawings (non-state) OR State pension cash flow */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Field label={isState ? 'State pension' : 'Drawings'}>
-          <Input
-            type="number"
-            inputMode="numeric"
-            value={(isState ? displayPension : displayIncome) as any}
+          <NumberInput
+            value={(isState ? pension!.periodic_amount : income!.periodic_amount) ?? null}
             placeholder="amount"
-            onChange={(e) => {
-              const v = e.target.value === '' ? null : Math.round(Number(e.target.value));
+            onValueChange={(v) => {
+              const val = v == null ? null : Math.round(v);
               if (isState) {
                 const cf = ensurePension();
-                onChange({ ...(item as any), ite: { ...(item as any).ite, pension: { ...cf, periodic_amount: v } } });
+                onChange({ ...(item as any), ite: { ...(item as any).ite, pension: { ...cf, periodic_amount: val } } });
               } else {
                 const cf = ensureIncome();
-                onChange({ ...(item as any), ite: { ...(item as any).ite, income: { ...cf, periodic_amount: v } } });
+                onChange({ ...(item as any), ite: { ...(item as any).ite, income: { ...cf, periodic_amount: val } } });
               }
             }}
           />

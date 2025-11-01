@@ -57,13 +57,6 @@ function annualiseCashflow(cf?: CashFlow): number {
   }
 }
 
-function netAfterTax(annualGross: number, cf: CashFlow | undefined, taxRate: number): number {
-  if (!cf) return 0;
-  if (cf.net_gross === "net") return annualGross;
-  if (cf.net_gross === "gross") return annualGross * (1 - taxRate);
-  return annualGross;
-}
-
 function growCashflow(annualAmount: number, growthRate: number, years: number): number {
   return annualAmount * Math.pow(1 + growthRate, years);
 }
@@ -290,8 +283,8 @@ export class BalanceSheetItemProjector {
       );
     }
 
-    // Property
-    if (["main_residence", "holiday_home", "buy_to_let"].includes(t)) {
+    // Property (treat other_valuable_item like a property with sell/none mode)
+    if (["main_residence", "holiday_home", "buy_to_let", "other_valuable_item"].includes(t)) {
       const propertyVal = data.value ?? data.property_value;
       const loanBal = data.loan?.balance ?? 0;
       const loanRepayment = data.loan?.repayment;
@@ -353,10 +346,10 @@ export class BalanceSheetItemProjector {
     }
 
     // Properties
-    if (["main_residence", "holiday_home", "buy_to_let"].includes(t)) {
-  const propertyVal = data.value ?? data.property_value ?? 0;
-  const loanBal = data.loan?.balance ?? 0;
-  return (propertyVal - loanBal);
+    if (["main_residence", "holiday_home", "buy_to_let", "other_valuable_item"].includes(t)) {
+      const propertyVal = data.value ?? data.property_value ?? 0;
+      const loanBal = data.loan?.balance ?? 0;
+      return (propertyVal - loanBal);
     }
 
     // Debts

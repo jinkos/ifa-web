@@ -20,8 +20,13 @@ export async function GET(req: NextRequest) {
     }
 
     const data = await getJson<any>(teamId, clientId, 'identity');
-    // If missing, return empty object
-    return NextResponse.json(data ?? {});
+    // Ensure retirement fields are present in the payload for UI contracts
+    const defaults = {
+      target_retirement_age: null as number | null,
+      target_retirement_income: null as any,
+    };
+    const identity = { ...defaults, ...(data ?? {}) };
+    return NextResponse.json(identity);
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Failed to load identity' }, { status: 500 });
   }
@@ -43,8 +48,10 @@ export async function PUT(req: NextRequest) {
     }
 
     const payload = await req.json();
-    // Minimal normalization: ensure postcode key name is preserved if provided
-    const identity = { ...payload };
+    // Merge-on-save: preserve existing keys unless explicitly overwritten
+    // This avoids clobbering other identity fields when a feature saves a partial payload
+    const existing = (await getJson<any>(teamId, clientId, 'identity')) ?? {};
+    const identity = { ...existing, ...payload };
 
     await putJson(teamId, clientId, 'identity', identity);
     return NextResponse.json({ ok: true });

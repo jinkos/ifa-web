@@ -1,8 +1,9 @@
 "use client";
-import { useState, DragEvent, useRef } from "react";
+import { useState, DragEvent, useRef, useEffect } from "react";
 import { useSelectedClient } from '../SelectedClientContext';
 import { useTeam } from '../TeamContext';
 import { getBrowserClient } from '@/lib/supabase/client.browser';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 // Reuse a single browser Supabase client to avoid multiple GoTrue instances in the page
 const supabase = getBrowserClient();
@@ -20,6 +21,9 @@ export default function DocumentDropzone({ onUpload }: { onUpload?: () => void }
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
+    const autoUploadRan = useRef(false);
+    const searchParams = useSearchParams();
+    const router = useRouter();
 
     // Get team from provider
     const { team } = useTeam();
@@ -121,6 +125,36 @@ export default function DocumentDropzone({ onUpload }: { onUpload?: () => void }
         // clear the input so selecting the same file again will retrigger onChange
         e.target.value = '';
     };
+
+    // Auto-upload flow triggered via query param ?autoupload=1&name=<filename>
+    useEffect(() => {
+        const auto = searchParams.get('autoupload');
+        if (!auto) return;
+        if (autoUploadRan.current) return;
+        // Wait until both selectedClient and team are present to avoid race
+        if (!selectedClient || !team) return;
+        const name = searchParams.get('name') || 'Gary Thompson FF.docx';
+        autoUploadRan.current = true;
+        (async () => {
+            try {
+                setError(null);
+                setSuccess(null);
+                const res = await fetch(`/api/dev/external-file?name=${encodeURIComponent(name)}`);
+                if (!res.ok) throw new Error('Failed to read external file');
+                const blob = await res.blob();
+                const type = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+                const file = new File([blob], name, { type });
+                await processFiles([file]);
+            } catch (err: any) {
+                setError(err?.message || 'Auto-upload failed');
+            } finally {
+                const params = new URLSearchParams(Array.from(searchParams.entries()));
+                params.delete('autoupload');
+                router.replace(`/dashboard/documents${params.size ? `?${params.toString()}` : ''}`);
+            }
+        })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [searchParams, selectedClient?.client_id, team?.id]);
 
     return (
         <div

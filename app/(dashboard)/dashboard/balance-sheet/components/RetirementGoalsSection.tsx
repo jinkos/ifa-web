@@ -1,6 +1,7 @@
 "use client";
 import React from 'react';
 import { Input } from '@/components/ui/input';
+import { NumberInput } from '@/components/ui/number-input';
 import Field from '@/components/ui/form/Field';
 import FormGrid from '@/components/ui/form/FormGrid';
 import SuggestionInline from '@/components/ui/suggestion-inline';
@@ -99,13 +100,12 @@ export default function RetirementGoalsSection<T extends FormData>({
         <h3 className="text-base font-medium mb-3">Target retirement income (today's money)</h3>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Field label="AMOUNT">
-            <Input
-              type="number"
-              value={retirementIncome.amount ?? ''}
+            <NumberInput
+              value={(retirementIncome.amount ?? null) as any}
               placeholder="amount"
-              onChange={(e) =>
+              onValueChange={(v) =>
                 updateRetirementIncome({
-                  amount: e.target.value === '' ? null : Number(e.target.value),
+                  amount: v == null ? null : Math.round(v),
                 })
               }
             />

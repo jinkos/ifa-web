@@ -40,7 +40,7 @@ const balanceItemLabels: Record<BalanceSheetItemKind, string> = {
   student_loan: 'Student loan',
   main_residence: 'Main residence',
   holiday_home: 'Holiday home',
-  car: 'Car',
+  other_valuable_item: 'Other valuable item',
   workplace_pension: 'Workplace pension',
   defined_benefit_pension: 'Defined benefit pension',
   personal_pension: 'Personal pension',
@@ -100,7 +100,7 @@ const makeDefaultItem = (kind: BalanceSheetItemKind): PersonalBalanceSheetItem =
     // PROPERTIES
     case 'main_residence':
     case 'holiday_home':
-    case 'car':
+    case 'other_valuable_item':
       return { ...common, ite: { value: null, loan: null } };
 
     // PENSIONS (non-state default cashflows; state uses pension cashflow)
@@ -131,6 +131,8 @@ const makeDefaultItem = (kind: BalanceSheetItemKind): PersonalBalanceSheetItem =
         } as any,
       };
   }
+  // Fallback (should not hit): treat as investment-like
+  return { ...(common as any), ite: { contribution: null, income: null, investment_value: null } } as any;
 };
 
 type ItemPatch = { type: BalanceSheetItemKind; description: string | null; patch: Partial<PersonalBalanceSheetItem> };
@@ -179,7 +181,7 @@ export default function BalanceSheetSection({
         return 'bg-rose-100 border-rose-300'; // Loans
       case 'main_residence':
       case 'holiday_home':
-      case 'car':
+      case 'other_valuable_item':
         return 'bg-amber-100 border-amber-300'; // Properties
       case 'workplace_pension':
       case 'defined_benefit_pension':
@@ -202,8 +204,10 @@ export default function BalanceSheetSection({
   }, [items]);
 
   const getDescriptionError = (it: PersonalBalanceSheetItem): string | undefined => {
-    const d = (it.description ?? '').trim().toLowerCase();
-    if (!d) return undefined;
+    const raw = (it.description ?? '');
+    const trimmed = raw.trim();
+    if (trimmed.length === 0) return 'Description is required';
+    const d = trimmed.toLowerCase();
     const c = descCounts.get(d) ?? 0;
     return c > 1 ? 'Description must be unique' : undefined;
   };
@@ -240,7 +244,7 @@ export default function BalanceSheetSection({
         return 'buy_to_let';
       case 'main_residence':
       case 'holiday_home':
-      case 'car':
+      case 'other_valuable_item':
         return 'property';
       case 'credit_card':
       case 'personal_loan':
@@ -346,7 +350,7 @@ export default function BalanceSheetSection({
     }
 
     // Buy to let
-    if (type === 'buy_to_let') {
+  if (type === 'buy_to_let') {
       if (path === 'ite.property_value') return 'Property value';
       if (path === 'ite.rental_income.periodic_amount') return 'Rent';
       if (path === 'ite.rental_income.frequency') return 'Rent frequency';
@@ -358,7 +362,7 @@ export default function BalanceSheetSection({
     }
 
     // Investment items
-    if (
+  if (
       type === 'current_account' ||
       type === 'gia' ||
       type === 'isa' ||
@@ -377,7 +381,7 @@ export default function BalanceSheetSection({
     }
 
     // Loan items
-    if (type === 'credit_card' || type === 'personal_loan' || type === 'student_loan') {
+  if (type === 'credit_card' || type === 'personal_loan' || type === 'student_loan') {
       if (path === 'ite.balance') return 'Balance';
       if (path === 'ite.repayment.periodic_amount') return 'Repayment';
       if (path === 'ite.repayment.frequency') return 'Repayment frequency';
@@ -385,9 +389,9 @@ export default function BalanceSheetSection({
     }
 
     // Property items
-    if (type === 'main_residence' || type === 'holiday_home' || type === 'car') {
-      if (path === 'ite.value') return type === 'car' ? 'Car value' : 'Property value';
-      if (path === 'ite.loan.balance') return type === 'car' ? 'Loan Balance' : 'Mortgage Balance';
+    if (type === 'main_residence' || type === 'holiday_home' || type === 'other_valuable_item') {
+      if (path === 'ite.value') return type === 'other_valuable_item' ? 'Item value' : 'Property value';
+      if (path === 'ite.loan.balance') return type === 'other_valuable_item' ? 'Loan Balance' : 'Mortgage Balance';
       if (path === 'ite.loan.repayment.periodic_amount') return 'Repayment';
       if (path === 'ite.loan.repayment.frequency') return 'Repayment frequency';
       if (path === 'ite.loan.repayment.net_gross') return 'Repayment net/gross';
@@ -472,7 +476,7 @@ export default function BalanceSheetSection({
           );
           const isLoan = it.type === 'credit_card' || it.type === 'personal_loan' || it.type === 'student_loan';
           const isPension = it.type === 'workplace_pension' || it.type === 'defined_benefit_pension' || it.type === 'personal_pension' || it.type === 'state_pension';
-          const isProperty = it.type === 'main_residence' || it.type === 'holiday_home' || it.type === 'car';
+          const isProperty = it.type === 'main_residence' || it.type === 'holiday_home' || it.type === 'other_valuable_item';
           const itemPatch = (suggestions ?? [])?.find((p) => p.type === (it.type as any) && normalize(p.description) === normalize(it.description));
           const label = balanceItemLabels[it.type as BalanceSheetItemKind] ?? it.type;
           const sectionKey = `balance.item:${it.type}|${normalize(it.description)}`;

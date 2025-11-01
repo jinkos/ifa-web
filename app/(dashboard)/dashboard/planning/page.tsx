@@ -5,9 +5,14 @@ import { useTeam } from '../TeamContext';
 import { loadIdentity } from '@/lib/api/identity';
 import { loadBalanceSheet } from '@/lib/api/balance';
 import type { IdentityState } from '@/lib/types/identity';
-import type { BalancePersonSummary, PersonalBalanceSheetItem, BalanceSheetItemKind } from '@/lib/types/balance';
-import { BalanceSheetItemProjector } from './planning_item_claculator';
-import type { ForwardValueAssumptions } from './planning_item_claculator';
+import type { ItemsOnlyBalance, PersonalBalanceSheetItem, BalanceSheetItemKind } from '@/lib/types/balance';
+import { annualiseTarget, computeYearsToRetirement } from '@/app/(dashboard)/dashboard/planning/selectors';
+import { createProjections, computeTotals } from '@/lib/planning/engine';
+import type { ForwardValueAssumptions } from '@/lib/planning/calculator';
+import ProjectionList from './components/ProjectionList';
+import SettingsBar from './components/SettingsBar';
+import TotalsCard from './components/TotalsCard';
+import { loadPlanningSettings, savePlanningSettings, type PlanningSettings } from '@/lib/api/planning';
 
 function calcAgeYears(dobISO: string, today = new Date()): number | null {
   const dob = new Date(dobISO);
@@ -26,8 +31,9 @@ export default function PlanningPage() {
   const [activeTab, setActiveTab] = useState<'pension' | 'cashflow'>('pension');
   const [dob, setDob] = useState<string | null>(null);
   const [targetAge, setTargetAge] = useState<number | null>(null);
+  const [identityTargetCF, setIdentityTargetCF] = useState<any | null>(null);
   const [loading, setLoading] = useState(false);
-  const [pbs, setPbs] = useState<BalancePersonSummary | null>(null);
+  const [pbs, setPbs] = useState<ItemsOnlyBalance | null>(null);
   const [inflationPct, setInflationPct] = useState<number>(2.5); // editable inflation rate (%)
   const [incomeEquivalentPct, setIncomeEquivalentPct] = useState<number>(4); // editable income equivalent (%)
   const [itemAssumptions, setItemAssumptions] = useState<Record<string, Partial<ForwardValueAssumptions>>>({});
@@ -47,17 +53,40 @@ export default function PlanningPage() {
       if (!team?.id || !selectedClient?.client_id) return;
       setLoading(true);
       try {
-        const [identity, balance] = await Promise.all([
+        const [identity, balance, planning] = await Promise.all([
           loadIdentity<IdentityState>(team.id, selectedClient.client_id).catch(() => ({} as any)),
-          loadBalanceSheet<BalancePersonSummary>(team.id, selectedClient.client_id).catch(() => ({} as any)),
+          loadBalanceSheet<any>(team.id, selectedClient.client_id).catch(() => ({} as any)),
+          loadPlanningSettings(team.id, selectedClient.client_id).catch(() => ({} as PlanningSettings)),
         ]);
         if (!ignore) {
           const dobVal = (identity as any)?.date_of_birth ?? '';
           setDob(dobVal && typeof dobVal === 'string' ? dobVal : null);
-          const ta = (balance as any)?.target_retirement_age;
-          setTargetAge(typeof ta === 'number' ? ta : (ta == null ? null : Number(ta)));
-          const bs = (balance as any)?.balance_sheet as PersonalBalanceSheetItem[] | undefined;
-          setPbs(bs && Array.isArray(bs) ? ({ ...(balance as any), balance_sheet: bs } as BalancePersonSummary) : null);
+          const ta2 = (identity as any)?.target_retirement_age;
+          setTargetAge(typeof ta2 === 'number' ? ta2 : (ta2 == null ? null : Number(ta2)));
+          setIdentityTargetCF((identity as any)?.target_retirement_income ?? null);
+          let bs = (balance as any)?.balance_sheet as PersonalBalanceSheetItem[] | undefined;
+          // One-time id backfill: if any items lack id, trigger a save to assign server integer ids, then reload
+          if (bs && Array.isArray(bs) && bs.some((it: any) => it?.id == null || it?.id === '')) {
+            try {
+              await import('@/lib/api/balance').then(async ({ saveBalanceSheet, loadBalanceSheet: reload }) => {
+                await saveBalanceSheet(team.id!, selectedClient.client_id!, { balance_sheet: bs! } as any);
+                const reloaded = await reload<any>(team.id!, selectedClient.client_id!);
+                bs = (reloaded as any)?.balance_sheet as any[] | undefined;
+              });
+            } catch {
+              // ignore; fall back to current bs
+            }
+          }
+          setPbs(bs && Array.isArray(bs) ? ({ balance_sheet: bs } as ItemsOnlyBalance) : null);
+
+          // Apply planning settings if present (server values take precedence over local defaults)
+          if (planning && typeof planning === 'object') {
+            if (typeof planning.inflationPct === 'number') setInflationPct(planning.inflationPct);
+            if (typeof planning.incomeEquivalentPct === 'number') setIncomeEquivalentPct(planning.incomeEquivalentPct);
+            if (planning.itemAssumptions && typeof planning.itemAssumptions === 'object') setItemAssumptions(planning.itemAssumptions as any);
+            if (planning.propertyMode && typeof planning.propertyMode === 'object') setPropertyMode(planning.propertyMode as any);
+            if (planning.incomeHighlight && typeof planning.incomeHighlight === 'object') setIncomeHighlight(planning.incomeHighlight as any);
+          }
         }
       } finally {
         if (!ignore) setLoading(false);
@@ -161,35 +190,33 @@ export default function PlanningPage() {
     try { localStorage.setItem(storageKey('incomeHighlight'), JSON.stringify(incomeHighlight ?? {})); } catch {}
   }, [lsHydrated, incomeHighlight, team?.id, selectedClient?.client_id]);
 
+  // Persist to server (Supabase) when settings change and IDs are known
+  useEffect(() => {
+    if (!team?.id || !selectedClient?.client_id) return;
+    // Don't save until after local state is hydrated to avoid clobbering server with defaults
+    if (!lsHydrated) return;
+    const payload: PlanningSettings = {
+      version: 1,
+      inflationPct,
+      incomeEquivalentPct,
+      itemAssumptions,
+      incomeHighlight,
+      propertyMode,
+    };
+    // Fire-and-forget; errors can be surfaced later in a toast if desired
+    savePlanningSettings(team.id, selectedClient.client_id, payload).catch(() => {});
+  }, [lsHydrated, team?.id, selectedClient?.client_id, inflationPct, incomeEquivalentPct, itemAssumptions, incomeHighlight, propertyMode]);
 
 
-  const yearsToRetirement = useMemo(() => {
-    if (!dob || targetAge == null) return null;
-    const age = calcAgeYears(dob);
-    if (age == null) return null;
-    const years = targetAge - age;
-    return years < 0 ? 0 : years;
-  }, [dob, targetAge]);
+
+  const yearsToRetirement = useMemo(() => computeYearsToRetirement(dob, targetAge), [dob, targetAge]);
 
   // Helper to annualise a cashflow-like object from PBS target_retirement_income
-  const annualiseTarget = (cf: any | undefined | null): number => {
-    if (!cf) return 0;
-    const amt = Number(cf?.periodic_amount ?? cf?.amount ?? 0) || 0;
-    const freq = cf?.frequency as string | undefined;
-    switch (freq) {
-      case 'weekly': return amt * 52;
-      case 'monthly': return amt * 12;
-      case 'quarterly': return amt * 4;
-      case 'six_monthly': return amt * 2;
-      case 'annually': return amt * 1;
-      default: return amt; // if unknown, treat as annual amount already
-    }
-  };
+  // annualiseTarget moved to selectors.ts for testing
 
   const targetIncomeAnnual = useMemo(() => {
-    const tri = (pbs as any)?.target_retirement_income;
-    return Math.round(annualiseTarget(tri) || 0);
-  }, [pbs]);
+    return Math.round(annualiseTarget(identityTargetCF) || 0);
+  }, [identityTargetCF]);
 
   const missing: string[] = useMemo(() => {
     const m: string[] = [];
@@ -198,24 +225,33 @@ export default function PlanningPage() {
     return m;
   }, [dob, targetAge]);
 
-  const investmentKinds: BalanceSheetItemKind[] = useMemo(
-    () => [
-      'current_account',
-      'gia',
-      'premium_bond',
-      'savings_account',
-      'uni_fees_savings_plan',
-      'vct',
-      'workplace_pension',
-      'personal_pension',
-    ],
-    []
-  );
+  const handleInflationChange = (v: number) => {
+    setInflationPct(v);
+    try { localStorage.setItem(storageKey('inflationPct'), String(v)); } catch {}
+  };
 
-  const incomeOnlyPensionKinds: BalanceSheetItemKind[] = useMemo(
-    () => ['state_pension', 'defined_benefit_pension'],
-    []
-  );
+  const handleWithdrawalChange = (v: number) => {
+    setIncomeEquivalentPct(v);
+    try { localStorage.setItem(storageKey('withdrawalPct'), String(v)); } catch {}
+  };
+
+  const handleReset = () => {
+    const ok = typeof window !== 'undefined' ? window.confirm('Reset planning settings for this client?') : true;
+    if (!ok) return;
+    try {
+      ['inflationPct', 'withdrawalPct', 'itemAssumptions', 'propertyMode', 'incomeHighlight']
+        .forEach((k) => {
+          try { localStorage.removeItem(storageKey(k)); } catch {}
+        });
+    } catch {}
+    setInflationPct(2.5);
+    setIncomeEquivalentPct(4);
+    setItemAssumptions({});
+    setPropertyMode({});
+    setIncomeHighlight({});
+  };
+
+  // Inclusion rules moved to lib/planning/catalog via engine
 
   // Reuse the same background colors as Balance Sheet
   const getItemBg = (t: BalanceSheetItemKind): string => {
@@ -240,7 +276,7 @@ export default function PlanningPage() {
         return 'bg-rose-100 border-rose-300'; // Loans
       case 'main_residence':
       case 'holiday_home':
-      case 'car':
+      case 'other_valuable_item':
         return 'bg-amber-100 border-amber-300'; // Properties
       case 'workplace_pension':
       case 'defined_benefit_pension':
@@ -253,158 +289,25 @@ export default function PlanningPage() {
   };
 
   const projections = useMemo(() => {
-    if (!pbs?.balance_sheet || yearsToRetirement == null) return [] as any[];
-
-    const assets = pbs.balance_sheet
-      .filter((it) => investmentKinds.includes(it.type))
-      .map((it, idx) => {
-        const key = String((it as any)?.id ?? (it as any)?.__localId ?? `a${idx}`);
-        const projector = new BalanceSheetItemProjector(it, itemAssumptions[key]);
-        const current = Math.round(projector.currentValue() || 0);
-        const future = Math.round(
-          projector.project(yearsToRetirement).future_capital_value || 0
-        );
-        const deflator = Math.pow(1 + (inflationPct || 0) / 100, yearsToRetirement);
-        const futureToday = Math.round(future / (deflator || 1));
-        const asIncome = Math.round(
-          futureToday * (Number.isFinite(incomeEquivalentPct) ? incomeEquivalentPct : 0) / 100
-        );
-        const hasContribution = !!((it as any)?.ite?.contribution?.periodic_amount);
-        return {
-          category: 'asset' as const,
-          id: (it as any)?.id ?? (it as any)?.__localId,
-          type: it.type,
-          description: (it as any)?.description ?? null,
-          current,
-          future,
-          futureToday,
-          asIncome,
-          key,
-          hasContribution,
-        };
-      });
-
-    const incomes = pbs.balance_sheet
-      .filter((it) => incomeOnlyPensionKinds.includes(it.type))
-      .map((it, idx) => {
-        const key = String((it as any)?.id ?? (it as any)?.__localId ?? `i${idx}`);
-        // Allow per-item overrides of inflation/tax via itemAssumptions
-        const projector = new BalanceSheetItemProjector(it, itemAssumptions[key]);
-        const proj = projector.project(yearsToRetirement);
-        const retirementIncome = Math.round(proj.retirement_income_contribution || 0); // already in today's terms
-        return {
-          category: 'income' as const,
-          id: (it as any)?.id ?? (it as any)?.__localId,
-          type: it.type,
-          description: (it as any)?.description ?? null,
-          income: retirementIncome,
-          key,
-        };
-      });
-
-    const loans = pbs.balance_sheet
-      .filter((it) => ['credit_card', 'personal_loan', 'student_loan'].includes(it.type))
-      .map((it, idx) => {
-        const key = String((it as any)?.id ?? (it as any)?.__localId ?? `l${idx}`);
-        const projector = new BalanceSheetItemProjector(it, itemAssumptions[key]);
-        const current = Math.round(projector.currentValue() || 0); // negative now
-        const future = Math.round(
-          projector.project(yearsToRetirement).future_capital_value || 0
-        ); // negative at retirement
-        const deflator = Math.pow(1 + (inflationPct || 0) / 100, yearsToRetirement);
-        const futureToday = Math.round(future / (deflator || 1)); // negative PV
-        const asIncome = Math.round(
-          futureToday * (Number.isFinite(incomeEquivalentPct) ? incomeEquivalentPct : 0) / 100
-        ); // negative income impact
-        return {
-          category: 'loan' as const,
-          id: (it as any)?.id ?? (it as any)?.__localId,
-          type: it.type,
-          description: (it as any)?.description ?? null,
-          current,
-          future,
-          futureToday,
-          asIncome,
-          key,
-        };
-      });
-
-    const properties = pbs.balance_sheet
-      .filter((it) => ['main_residence', 'holiday_home', 'buy_to_let'].includes(it.type))
-      .map((it, idx) => {
-        const key = String((it as any)?.id ?? (it as any)?.__localId ?? `p${idx}`);
-        const projector = new BalanceSheetItemProjector(it, itemAssumptions[key]);
-        const current = Math.round(projector.currentValue() || 0);
-        const proj = projector.project(yearsToRetirement);
-        const future = Math.round(proj.future_capital_value || 0); // equity at retirement
-        const deflator = Math.pow(1 + (inflationPct || 0) / 100, yearsToRetirement);
-        const futureToday = Math.round(future / (deflator || 1));
-
-        let rentToday = 0;
-        if (it.type === 'buy_to_let') {
-          const rentFutureNet = Math.round((proj.debug?.rentFutureNet as number) || 0);
-          rentToday = Math.round(rentFutureNet / (deflator || 1));
-        }
-
-        const asIncomeSell = Math.round(
-          futureToday * (Number.isFinite(incomeEquivalentPct) ? incomeEquivalentPct : 0) / 100
-        );
-
-        // select according to mode (default rent for BTL, none for others)
-        const mode = propertyMode[key] ?? (it.type === 'buy_to_let' ? 'rent' : 'none');
-        const asIncome = mode === 'rent' ? rentToday : mode === 'sell' ? asIncomeSell : 0;
-
-        return {
-          category: 'property' as const,
-          id: (it as any)?.id ?? (it as any)?.__localId,
-          type: it.type,
-          description: (it as any)?.description ?? null,
-          current,
-          future,
-          futureToday,
-          asIncome,
-          key,
-          mode,
-          rentToday,
-          asIncomeSell,
-        };
-      });
-
-    return [...assets, ...properties, ...incomes, ...loans];
-  }, [pbs?.balance_sheet, yearsToRetirement, investmentKinds, incomeOnlyPensionKinds, inflationPct, incomeEquivalentPct, itemAssumptions, propertyMode]);
+    return createProjections(
+      pbs,
+      yearsToRetirement,
+      inflationPct,
+      incomeEquivalentPct,
+      itemAssumptions,
+      propertyMode,
+    ) as any[];
+  }, [pbs?.balance_sheet, yearsToRetirement, inflationPct, incomeEquivalentPct, itemAssumptions, propertyMode]);
 
   const totals = useMemo(() => {
-    if (yearsToRetirement == null) return null as null | any;
-    const deflator = Math.pow(1 + (inflationPct || 0) / 100, yearsToRetirement);
-
-    let currentSum = 0;
-    let futureSum = 0;
-    let todaySum = 0;
-    let incomeSum = 0;
-
-    for (const p of projections as any[]) {
-      if (p.category === 'asset' || p.category === 'loan' || p.category === 'property') {
-        currentSum += p.current || 0;
-        futureSum += p.future || 0;
-        todaySum += p.futureToday || 0;
-
-        // Income from assets/loans respects highlight
-        if (p.category === 'asset' || p.category === 'loan') {
-          if (incomeHighlight[p.key] ?? true) incomeSum += p.asIncome || 0;
-        }
-
-        // Properties already encode selection in asIncome (0 when None)
-        if (p.category === 'property') {
-          incomeSum += p.asIncome || 0;
-        }
-      } else if (p.category === 'income') {
-        // Already in today's terms
-        incomeSum += p.income || 0;
-      }
-    }
-
-    return { currentSum, futureSum, todaySum, incomeSum };
-  }, [projections, incomeHighlight, inflationPct, yearsToRetirement]);
+    return computeTotals(
+      projections as any[],
+      incomeHighlight,
+      yearsToRetirement,
+      inflationPct,
+      targetIncomeAnnual,
+    ) as any;
+  }, [projections, incomeHighlight, inflationPct, yearsToRetirement, targetIncomeAnnual]);
 
   // Cleanup: prune per-item maps to only current projection keys (avoids stale entries)
   useEffect(() => {
@@ -461,96 +364,20 @@ export default function PlanningPage() {
 
       {activeTab === 'pension' ? (
         <>
-          {/* Top info row: Years to retirement, Inflation, Income Equivalent */}
+          {/* Top info row */}
           <div className="mb-6">
             {selectedClient && team ? (
               <div className="border rounded-md p-4 bg-white dark:bg-black">
-                {loading ? (
-                  <div className="text-muted-foreground">Loading…</div>
-                ) : yearsToRetirement != null ? (
-                  <div className="flex flex-wrap items-end gap-8">
-                    {/* Years to retirement */}
-                    <div className="flex flex-col gap-1">
-                      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Years to retirement</div>
-                      <div className="text-3xl font-semibold text-blue-700">{yearsToRetirement}</div>
-                    </div>
-
-                    {/* Inflation rate */}
-                    <div className="flex flex-col gap-1">
-                      <label htmlFor="inflation-rate" className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Inflation rate</label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          id="inflation-rate"
-                          type="number"
-                          step="0.1"
-                          min={0}
-                          className="w-28 rounded-md border px-2 py-1 bg-white dark:bg-black"
-                          value={Number.isFinite(inflationPct) ? inflationPct : ''}
-                          onChange={(e) => {
-                            const v = parseFloat(e.target.value);
-                            const next = Number.isFinite(v) ? Math.max(0, v) : 0;
-                            setInflationPct(next);
-                            try { localStorage.setItem(storageKey('inflationPct'), String(next)); } catch {}
-                          }}
-                        />
-                        <span className="text-sm text-muted-foreground">%</span>
-                      </div>
-                    </div>
-
-                    {/* Sustainable investment withdrawal rate */}
-                    <div className="flex flex-col gap-1">
-                      <label htmlFor="income-equivalent" className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Sustainable investment withdrawal rate</label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          id="income-equivalent"
-                          type="number"
-                          step="0.1"
-                          min={0}
-                          className="w-28 rounded-md border px-2 py-1 bg-white dark:bg-black"
-                          value={Number.isFinite(incomeEquivalentPct) ? incomeEquivalentPct : ''}
-                          onChange={(e) => {
-                            const v = parseFloat(e.target.value);
-                            const next = Number.isFinite(v) ? Math.max(0, v) : 0;
-                            setIncomeEquivalentPct(next);
-                            try { localStorage.setItem(storageKey('withdrawalPct'), String(next)); } catch {}
-                          }}
-                        />
-                        <span className="text-sm text-muted-foreground">%</span>
-                      </div>
-                    </div>
-
-                    {/* Reset planning settings */}
-                    <div className="ml-auto">
-                      <button
-                        className="px-3 py-1.5 text-xs rounded-md border border-red-300 text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
-                        onClick={() => {
-                          const ok = window.confirm('Reset planning settings for this client?');
-                          if (!ok) return;
-                          try {
-                            // Clear current scope keys
-                            ['inflationPct', 'withdrawalPct', 'itemAssumptions', 'propertyMode', 'incomeHighlight']
-                              .forEach((k) => {
-                                try { localStorage.removeItem(storageKey(k)); } catch {}
-                              });
-                          } catch {}
-                          // Reset in-memory state
-                          setInflationPct(2.5);
-                          setIncomeEquivalentPct(4);
-                          setItemAssumptions({});
-                          setPropertyMode({});
-                          setIncomeHighlight({});
-                        }}
-                        title="Clear all planning inputs and assumptions for this client"
-                      >
-                        Reset settings
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-red-700">
-                    No planning can be done without {missing.join(' and ')}.
-                  </div>
-                )}
+                <SettingsBar
+                  loading={loading}
+                  yearsToRetirement={yearsToRetirement}
+                  inflationPct={inflationPct}
+                  onInflationChange={handleInflationChange}
+                  incomeEquivalentPct={incomeEquivalentPct}
+                  onIncomeEquivalentChange={handleWithdrawalChange}
+                  onReset={handleReset}
+                  missing={missing}
+                />
               </div>
             ) : (
               <div className="text-muted-foreground">Select a client to see planning details.</div>
@@ -564,336 +391,25 @@ export default function PlanningPage() {
               {loading ? (
                 <div className="p-4 text-muted-foreground">Loading…</div>
               ) : projections.length > 0 ? (
-                <div className="p-4 grid grid-cols-1 gap-4">
+                <div>
                   {/* Totals row */}
-                  {totals ? (
-                    <div className="rounded-md border p-3 bg-white dark:bg-neutral-950">
-                      <div className="flex flex-wrap items-end justify-between gap-6 text-sm">
-                        <div className="text-right">
-                          <div className="text-xs text-muted-foreground">Current</div>
-                          <div className={`tabular-nums font-semibold ${totals.currentSum < 0 ? 'text-red-700' : 'text-emerald-700'}`}>{totals.currentSum.toLocaleString()}</div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-xs text-muted-foreground">Future</div>
-                          <div className={`tabular-nums font-semibold ${totals.futureSum < 0 ? 'text-red-700' : 'text-emerald-700'}`}>{totals.futureSum.toLocaleString()}</div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-xs text-muted-foreground">Today</div>
-                          <div className={`tabular-nums font-semibold ${totals.todaySum < 0 ? 'text-red-700' : 'text-emerald-700'}`}>{totals.todaySum.toLocaleString()}</div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-xs text-muted-foreground">Income</div>
-                          <div className={`tabular-nums text-lg font-bold ${ (totals.incomeSum < 0 || (targetIncomeAnnual > 0 && totals.incomeSum < targetIncomeAnnual)) ? 'text-red-700' : 'text-blue-700'}`}>{totals.incomeSum.toLocaleString()}</div>
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {projections.map((p: any) => {
-                    const effGrowthPct = ((itemAssumptions[p.key]?.annual_growth_rate ?? DEFAULTS.annual_growth_rate) * 100).toFixed(2);
-                    const effContribPct = ((itemAssumptions[p.key]?.contribution_growth_rate ?? DEFAULTS.contribution_growth_rate) * 100).toFixed(2);
-                    return (
-                      <div key={p.key} className={`rounded-md border p-3 ${getItemBg(p.type)} dark:bg-neutral-950`}>
-                        {/* Top line: name + values */}
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <div className="font-medium capitalize">{p.type.replaceAll('_', ' ')}</div>
-                            {p.description ? (
-                              <div className="text-xs text-muted-foreground">{p.description}</div>
-                            ) : null}
-                          </div>
-                          {p.category === 'asset' ? (
-                            <div className="flex items-end gap-6 text-sm">
-                              <div className="text-right">
-                                <div className="text-xs text-muted-foreground">Current</div>
-                                <div className={`tabular-nums font-medium ${p.current < 0 ? 'text-red-700' : ''}`}>{p.current.toLocaleString()}</div>
-                              </div>
-                              <div className="text-right">
-                                <div className="text-xs text-muted-foreground">Future</div>
-                                <div className={`tabular-nums font-medium ${p.future < 0 ? 'text-red-700' : ''}`}>{p.future.toLocaleString()}</div>
-                              </div>
-                              <div className="text-right">
-                                <div className="text-xs text-muted-foreground">Today</div>
-                                <div className={`tabular-nums font-medium ${p.futureToday < 0 ? 'text-red-700' : ''}`}>{p.futureToday.toLocaleString()}</div>
-                              </div>
-                              <div className="text-right">
-                                <div className="flex items-center justify-end gap-2">
-                                  <div className="text-xs text-muted-foreground">As Income</div>
-                                  <input
-                                    type="checkbox"
-                                    className="h-4 w-4"
-                                    checked={(incomeHighlight[p.key] ?? true)}
-                                    onChange={(e) =>
-                                      setIncomeHighlight((prev) => ({ ...prev, [p.key]: e.target.checked }))
-                                    }
-                                    title="Toggle highlight"
-                                  />
-                                </div>
-                                <div
-                                  className={
-                                    `tabular-nums font-semibold ` +
-                                    ((incomeHighlight[p.key] ?? true) ? 'text-emerald-700' : 'text-muted-foreground')
-                                  }
-                                >
-                                  {p.asIncome.toLocaleString()}
-                                </div>
-                              </div>
-                            </div>
-                          ) : p.category === 'property' ? (
-                            <div className="flex items-end gap-6 text-sm">
-                              <div className="text-right">
-                                <div className="text-xs text-muted-foreground">Current</div>
-                                <div className={`tabular-nums font-medium ${p.current < 0 ? 'text-red-700' : ''}`}>{p.current.toLocaleString()}</div>
-                              </div>
-                              <div className="text-right">
-                                <div className="text-xs text-muted-foreground">Future</div>
-                                <div className={`tabular-nums font-medium ${p.future < 0 ? 'text-red-700' : ''}`}>{p.future.toLocaleString()}</div>
-                              </div>
-                              <div className="text-right">
-                                <div className="text-xs text-muted-foreground">Today</div>
-                                <div className={`tabular-nums font-medium ${p.futureToday < 0 ? 'text-red-700' : ''}`}>{p.futureToday.toLocaleString()}</div>
-                              </div>
-                              <div className="text-right">
-                                <div className="flex items-center justify-end gap-3">
-                                  <div className="text-xs text-muted-foreground">Income mode</div>
-                                  {p.type === 'buy_to_let' ? (
-                                    <div className="inline-flex rounded-md border overflow-hidden">
-                                      {(['rent','sell','none'] as const).map((m) => (
-                                        <button
-                                          key={m}
-                                          className={`px-2 py-1 text-xs ${p.mode === m ? 'bg-emerald-600 text-white' : 'bg-white/70 dark:bg-neutral-900'}`}
-                                          onClick={() => setPropertyMode((prev) => ({ ...prev, [p.key]: m }))}
-                                        >
-                                          {m === 'rent' ? 'Rent' : m === 'sell' ? 'Sell' : 'None'}
-                                        </button>
-                                      ))}
-                                    </div>
-                                  ) : (
-                                    <div className="inline-flex rounded-md border overflow-hidden">
-                                      {(['sell','none'] as const).map((m) => (
-                                        <button
-                                          key={m}
-                                          className={`px-2 py-1 text-xs ${p.mode === m ? 'bg-emerald-600 text-white' : 'bg-white/70 dark:bg-neutral-900'}`}
-                                          onClick={() => setPropertyMode((prev) => ({ ...prev, [p.key]: m }))}
-                                        >
-                                          {m === 'sell' ? 'Sell' : 'None'}
-                                        </button>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                                <div className={`tabular-nums font-semibold ${p.asIncome > 0 ? 'text-emerald-700' : 'text-muted-foreground'}`}>
-                                  {p.asIncome.toLocaleString()}
-                                </div>
-                              </div>
-                            </div>
-                          ) : p.category === 'income' ? (
-                            <div className="flex items-end gap-6 text-sm">
-                              <div className="text-right">
-                                <div className="text-xs text-muted-foreground">Income</div>
-                                <div className="tabular-nums font-semibold text-emerald-700">{p.income.toLocaleString()}</div>
-                                <div className="text-[10px] text-muted-foreground mt-0.5">Shown in today's money</div>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="flex items-end gap-6 text-sm">
-                              <div className="text-right">
-                                <div className="text-xs text-muted-foreground">Current</div>
-                                <div className={`tabular-nums font-medium ${p.current < 0 ? 'text-red-700' : ''}`}>{p.current.toLocaleString()}</div>
-                              </div>
-                              <div className="text-right">
-                                <div className="text-xs text-muted-foreground">Future</div>
-                                <div className={`tabular-nums font-medium ${p.future < 0 ? 'text-red-700' : ''}`}>{p.future.toLocaleString()}</div>
-                              </div>
-                              <div className="text-right">
-                                <div className="text-xs text-muted-foreground">Today</div>
-                                <div className={`tabular-nums font-medium ${p.futureToday < 0 ? 'text-red-700' : ''}`}>{p.futureToday.toLocaleString()}</div>
-                              </div>
-                              <div className="text-right">
-                                <div className="flex items-center justify-end gap-2">
-                                  <div className="text-xs text-muted-foreground">As Income</div>
-                                  <input
-                                    type="checkbox"
-                                    className="h-4 w-4"
-                                    checked={(incomeHighlight[p.key] ?? true)}
-                                    onChange={(e) =>
-                                      setIncomeHighlight((prev) => ({ ...prev, [p.key]: e.target.checked }))
-                                    }
-                                    title="Toggle highlight"
-                                  />
-                                </div>
-                                <div
-                                  className={
-                                    `tabular-nums font-semibold ` +
-                                    ((incomeHighlight[p.key] ?? true)
-                                      ? (p.asIncome < 0 ? 'text-red-700' : 'text-emerald-700')
-                                      : 'text-muted-foreground')
-                                  }
-                                >
-                                  {p.asIncome.toLocaleString()}
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                        {/* Second line: per-item assumptions */}
-                        <div className="mt-3 pt-3 border-t">
-                          {p.category === 'asset' ? (
-                            <div className="flex flex-wrap items-center gap-4 text-xs">
-                              <span className="text-muted-foreground">Assumptions</span>
-                              <label className="inline-flex items-center gap-2">
-                                <span>Growth %</span>
-                                <input
-                                  type="number"
-                                  step="0.1"
-                                  className="w-24 rounded-md border px-2 py-1 bg-white dark:bg-black text-right"
-                                  value={effGrowthPct}
-                                  onChange={(e) => {
-                                    const v = parseFloat(e.target.value);
-                                    setItemAssumptions((prev) => ({
-                                      ...prev,
-                                      [p.key]: {
-                                        ...prev[p.key],
-                                        annual_growth_rate: Number.isFinite(v) ? Math.max(0, v) / 100 : undefined,
-                                      },
-                                    }));
-                                  }}
-                                />
-                              </label>
-                              {p.hasContribution ? (
-                                <label className="inline-flex items-center gap-2">
-                                  <span>Contribution growth %</span>
-                                  <input
-                                    type="number"
-                                    step="0.1"
-                                    className="w-28 rounded-md border px-2 py-1 bg-white dark:bg-black text-right"
-                                    value={effContribPct}
-                                    onChange={(e) => {
-                                      const v = parseFloat(e.target.value);
-                                      setItemAssumptions((prev) => ({
-                                        ...prev,
-                                        [p.key]: {
-                                          ...prev[p.key],
-                                          contribution_growth_rate: Number.isFinite(v) ? Math.max(0, v) / 100 : undefined,
-                                        },
-                                      }));
-                                    }}
-                                  />
-                                </label>
-                              ) : null}
-                            </div>
-                          ) : p.category === 'property' ? (
-                            <div className="flex flex-wrap items-center gap-4 text-xs">
-                              <span className="text-muted-foreground">Assumptions</span>
-                              <label className="inline-flex items-center gap-2">
-                                <span>Growth %</span>
-                                <input
-                                  type="number"
-                                  step="0.1"
-                                  className="w-24 rounded-md border px-2 py-1 bg-white dark:bg-black text-right"
-                                  value={(((itemAssumptions[p.key]?.annual_growth_rate) ?? DEFAULTS.annual_growth_rate) * 100).toFixed(2)}
-                                  onChange={(e) => {
-                                    const v = parseFloat(e.target.value);
-                                    setItemAssumptions((prev) => ({
-                                      ...prev,
-                                      [p.key]: {
-                                        ...prev[p.key],
-                                        annual_growth_rate: Number.isFinite(v) ? Math.max(0, v) / 100 : undefined,
-                                      },
-                                    }));
-                                  }}
-                                />
-                              </label>
-                              <label className="inline-flex items-center gap-2">
-                                <span>Loan interest %</span>
-                                <input
-                                  type="number"
-                                  step="0.1"
-                                  className="w-28 rounded-md border px-2 py-1 bg-white dark:bg-black text-right"
-                                  value={(((itemAssumptions[p.key]?.loan_interest_rate) ?? 0.05) * 100).toFixed(2)}
-                                  onChange={(e) => {
-                                    const v = parseFloat(e.target.value);
-                                    setItemAssumptions((prev) => ({
-                                      ...prev,
-                                      [p.key]: {
-                                        ...prev[p.key],
-                                        loan_interest_rate: Number.isFinite(v) ? Math.max(0, v) / 100 : undefined,
-                                      },
-                                    }));
-                                  }}
-                                />
-                              </label>
-                              <label className="inline-flex items-center gap-2">
-                                <span>Tax rate %</span>
-                                <input
-                                  type="number"
-                                  step="0.1"
-                                  className="w-24 rounded-md border px-2 py-1 bg-white dark:bg-black text-right"
-                                  value={(((itemAssumptions[p.key]?.tax_rate) ?? 0.2) * 100).toFixed(2)}
-                                  onChange={(e) => {
-                                    const v = parseFloat(e.target.value);
-                                    setItemAssumptions((prev) => ({
-                                      ...prev,
-                                      [p.key]: {
-                                        ...prev[p.key],
-                                        tax_rate: Number.isFinite(v) ? Math.max(0, v) / 100 : undefined,
-                                      },
-                                    }));
-                                  }}
-                                />
-                              </label>
-                            </div>
-                          ) : p.category === 'income' ? (
-                            <div className="flex flex-wrap items-center gap-4 text-xs">
-                              <span className="text-muted-foreground">Assumptions</span>
-                              <label className="inline-flex items-center gap-2">
-                                <span>Above-inflation growth %</span>
-                                <input
-                                  type="number"
-                                  step="0.1"
-                                  className="w-28 rounded-md border px-2 py-1 bg-white dark:bg-black text-right"
-                                  value={(((itemAssumptions[p.key]?.above_inflation_growth_rate) ?? 0.01) * 100).toFixed(2)}
-                                  onChange={(e) => {
-                                    const v = parseFloat(e.target.value);
-                                    setItemAssumptions((prev) => ({
-                                      ...prev,
-                                      [p.key]: {
-                                        ...prev[p.key],
-                                        above_inflation_growth_rate: Number.isFinite(v) ? Math.max(0, v) / 100 : undefined,
-                                      },
-                                    }));
-                                  }}
-                                />
-                              </label>
-                            </div>
-                          ) : (
-                            <div className="flex flex-wrap items-center gap-4 text-xs">
-                              <span className="text-muted-foreground">Assumptions</span>
-                              <label className="inline-flex items-center gap-2">
-                                <span>Interest %</span>
-                                <input
-                                  type="number"
-                                  step="0.1"
-                                  className="w-24 rounded-md border px-2 py-1 bg-white dark:bg-black text-right"
-                                  value={(((itemAssumptions[p.key]?.loan_interest_rate) ?? 0.05) * 100).toFixed(2)}
-                                  onChange={(e) => {
-                                    const v = parseFloat(e.target.value);
-                                    setItemAssumptions((prev) => ({
-                                      ...prev,
-                                      [p.key]: {
-                                        ...prev[p.key],
-                                        loan_interest_rate: Number.isFinite(v) ? Math.max(0, v) / 100 : undefined,
-                                      },
-                                    }));
-                                  }}
-                                />
-                              </label>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
+                  <TotalsCard totals={totals as any} targetIncomeAnnual={targetIncomeAnnual} />
+                  <ProjectionList
+                    rows={projections as any}
+                    itemAssumptions={itemAssumptions}
+                    incomeHighlight={incomeHighlight}
+                    propertyMode={propertyMode}
+                    defaults={{
+                      annual_growth_rate: DEFAULTS.annual_growth_rate,
+                      contribution_growth_rate: DEFAULTS.contribution_growth_rate,
+                      loan_interest_rate: 0.05,
+                      tax_rate: 0.2,
+                      above_inflation_growth_rate: 0.01,
+                    }}
+                    setItemAssumptions={setItemAssumptions}
+                    setIncomeHighlight={setIncomeHighlight}
+                    setPropertyMode={setPropertyMode}
+                  />
                 </div>
               ) : (
                 <div className="p-4 text-muted-foreground">No investment or pension items to project.</div>

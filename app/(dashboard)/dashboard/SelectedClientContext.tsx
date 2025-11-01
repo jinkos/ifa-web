@@ -37,15 +37,23 @@ export function SelectedClientProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let ignore = false;
     const verify = async () => {
-      if (!selectedClient?.client_id) return;
-      try {
-        const res = await fetch(`/api/clients/${selectedClient.client_id}`, { cache: 'no-store' });
-        if (!res.ok && !ignore) {
-          setSelectedClientState(null);
-          localStorage.removeItem('selected_client');
+      const id = selectedClient?.client_id;
+      if (!id) return;
+      // Retry a few times before clearing selection to avoid flapping right after creation
+      const attempts = 5;
+      const delayMs = 250;
+      for (let i = 0; i < attempts && !ignore; i++) {
+        try {
+          const res = await fetch(`/api/clients/${id}`, { cache: 'no-store' });
+          if (res.ok) return; // valid selection
+        } catch {
+          // ignore network blips; we'll retry
         }
-      } catch {
-        // Network errors: do not aggressively clear; user can retry operations that will re-verify
+        await new Promise((r) => setTimeout(r, delayMs));
+      }
+      if (!ignore) {
+        setSelectedClientState(null);
+        localStorage.removeItem('selected_client');
       }
     };
     verify();

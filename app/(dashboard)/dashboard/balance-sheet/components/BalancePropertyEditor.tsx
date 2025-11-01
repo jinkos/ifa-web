@@ -2,6 +2,7 @@
 import React from 'react';
 import Field from '@/components/ui/form/Field';
 import { Input } from '@/components/ui/input';
+import { NumberInput } from '@/components/ui/number-input';
 import type { PersonalBalanceSheetItem, BalanceFrequency, NetGrossIndicator, CashFlow, Debt, PropertyData } from '@/lib/types/balance';
 
 const freqOptions: BalanceFrequency[] = [
@@ -15,7 +16,7 @@ const freqOptions: BalanceFrequency[] = [
 
 const ngOptions: NetGrossIndicator[] = ['net', 'gross', 'unknown'];
 
-type PropertyKinds = 'main_residence' | 'holiday_home' | 'car';
+type PropertyKinds = 'main_residence' | 'holiday_home' | 'other_valuable_item';
 
 export default function BalancePropertyEditor({
   item,
@@ -26,18 +27,16 @@ export default function BalancePropertyEditor({
   onChange: (next: PersonalBalanceSheetItem) => void;
   descriptionError?: string;
 }) {
-  const isCar = item.type === 'car';
-  const valueLabel = isCar ? 'Car value' : 'Property value';
-  const balanceLabel = isCar ? 'Loan Balance' : 'Mortgage Balance';
+  const isValuableItem = item.type === 'other_valuable_item';
+  const valueLabel = isValuableItem ? 'Item value' : 'Property value';
+  const balanceLabel = isValuableItem ? 'Loan Balance' : 'Mortgage Balance';
   const repayLabel = 'Repayment';
 
   const ensureLoan = (): Debt => item.ite.loan ?? { balance: null, repayment: null };
   const ensureRepayment = (): CashFlow => ensureLoan().repayment ?? { periodic_amount: null, frequency: 'monthly', net_gross: 'net' };
 
-  const displayValue = (item.ite.value ?? '') as any;
-  const displayBalance = (item.ite.loan?.balance ?? '') as any;
   const repay = ensureRepayment();
-  const displayRepay = (repay.periodic_amount ?? 0) === 0 && repay.periodic_amount !== null ? '' : (repay.periodic_amount ?? '');
+  
 
   return (
     <div className="mt-3 rounded-md border p-3 bg-muted/30 space-y-4">
@@ -45,19 +44,25 @@ export default function BalancePropertyEditor({
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Field label="Description" className="md:col-span-2" error={descriptionError}>
           <Input
+            required
             value={item.description ?? ''}
             onChange={(e) => onChange({ ...item, description: e.target.value })}
+            onBlur={(e) => {
+              const v = (e.target.value ?? '').trim();
+              if (!v) {
+                const toTitle = (s: string) => s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+                onChange({ ...item, description: toTitle(String(item.type)) });
+              }
+            }}
           />
         </Field>
         <Field label={valueLabel}>
-          <Input
-            type="number"
-            inputMode="numeric"
-            value={displayValue}
+          <NumberInput
+            value={item.ite.value ?? null}
             placeholder="value"
-            onChange={(e) => {
-              const v = e.target.value === '' ? null : Math.round(Number(e.target.value));
-              onChange({ ...item, ite: { ...item.ite, value: v } });
+            onValueChange={(v) => {
+              const val = v == null ? null : Math.round(v);
+              onChange({ ...item, ite: { ...item.ite, value: val } });
             }}
           />
         </Field>
@@ -73,29 +78,25 @@ export default function BalancePropertyEditor({
       {/* Row 2: Balance, Repayment, Frequency, Net/Gross */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Field label={balanceLabel}>
-          <Input
-            type="number"
-            inputMode="numeric"
-            value={displayBalance}
+          <NumberInput
+            value={item.ite.loan?.balance ?? null}
             placeholder="balance"
-            onChange={(e) => {
-              const v = e.target.value === '' ? null : Math.round(Number(e.target.value));
+            onValueChange={(v) => {
+              const val = v == null ? null : Math.round(v);
               const loan = ensureLoan();
-              onChange({ ...item, ite: { ...item.ite, loan: { ...loan, balance: v } } });
+              onChange({ ...item, ite: { ...item.ite, loan: { ...loan, balance: val } } });
             }}
           />
         </Field>
         <Field label={repayLabel}>
-          <Input
-            type="number"
-            inputMode="numeric"
-            value={displayRepay as any}
+          <NumberInput
+            value={repay.periodic_amount ?? null}
             placeholder="amount"
-            onChange={(e) => {
-              const v = e.target.value === '' ? null : Math.round(Number(e.target.value));
+            onValueChange={(v) => {
+              const val = v == null ? null : Math.round(v);
               const loan = ensureLoan();
               const repayment = ensureRepayment();
-              onChange({ ...item, ite: { ...item.ite, loan: { ...loan, repayment: { ...repayment, periodic_amount: v } } } });
+              onChange({ ...item, ite: { ...item.ite, loan: { ...loan, repayment: { ...repayment, periodic_amount: val } } } });
             }}
           />
         </Field>

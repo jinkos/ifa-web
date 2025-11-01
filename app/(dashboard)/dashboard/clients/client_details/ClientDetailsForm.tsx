@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useEffect, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import Field from '@/components/ui/form/Field';
@@ -25,9 +25,12 @@ type ClientDetails = {
 
 export default function ClientDetailsForm({ clientId }: { clientId: string }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [client, setClient] = useState<ClientDetails | null>(null);
   const [loading, setLoading] = useState(clientId !== 'new');
   const [error, setError] = useState<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const autoSubmitRan = useRef(false);
 
   useEffect(() => {
     let ignore = false;
@@ -89,7 +92,21 @@ export default function ClientDetailsForm({ clientId }: { clientId: string }) {
         });
       }
       if (!res.ok) throw new Error('Failed to save client');
-      router.push('/dashboard/clients');
+      const created = await res.json().catch(() => null);
+      // If invoked as part of Gary's Path (gp=1), set selected client and go to Documents for auto-upload
+      const isGaryPath = searchParams.get('gp') === '1';
+      const docName = searchParams.get('doc') || 'Gary Thompson FF.docx';
+      if (isGaryPath && created && typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('selected_client', JSON.stringify(created));
+        } catch {}
+        const cid = created?.client_id;
+        // Route back to Clients so we can visibly see Gary listed, then let ClientsTable
+        // select and continue to Documents with autoupload.
+        router.push(`/dashboard/clients?selectId=${encodeURIComponent(String(cid))}&gp=1&doc=${encodeURIComponent(docName)}`);
+      } else {
+        router.push('/dashboard/clients');
+      }
     } catch (err: any) {
       setError(err.message);
     }
@@ -99,6 +116,20 @@ export default function ClientDetailsForm({ clientId }: { clientId: string }) {
   if (error) return <div className="p-4 text-red-500">{error}</div>;
 
   const isNew = clientId === 'new';
+  const autoName = searchParams.get('autofill_name') || undefined;
+  const autoEmail = searchParams.get('autofill_email') || undefined;
+  const doAutoSubmit = searchParams.get('autosubmit') === '1';
+
+  useEffect(() => {
+    if (!isNew) return;
+    if (!doAutoSubmit) return;
+    if (autoSubmitRan.current) return;
+    autoSubmitRan.current = true;
+    // Delay a tick to ensure defaultValue is rendered
+    setTimeout(() => {
+      formRef.current?.requestSubmit();
+    }, 0);
+  }, [isNew, doAutoSubmit]);
 
   return (
     <section className="flex-1 p-4 lg:p-8">
@@ -110,14 +141,14 @@ export default function ClientDetailsForm({ clientId }: { clientId: string }) {
           <CardTitle>{isNew ? 'Create a new client' : 'Edit client details'}</CardTitle>
         </CardHeader>
         <CardContent>
-          <form className="space-y-6" onSubmit={handleSubmit}>
+          <form ref={formRef} className="space-y-6" onSubmit={handleSubmit}>
             <FormSection>
               <FormGrid colsMd={2}>
                 <Field label="Name">
-                  <Input name="name" type="text" placeholder="Client Name" defaultValue={client?.name || ''} required />
+                  <Input name="name" type="text" placeholder="Client Name" defaultValue={autoName ?? client?.name ?? ''} required />
                 </Field>
                 <Field label="Email">
-                  <Input name="email" type="email" placeholder="Client Email" defaultValue={client?.email || ''} />
+                  <Input name="email" type="email" placeholder="Client Email" defaultValue={autoEmail ?? client?.email ?? ''} />
                 </Field>
                 <Field label="Mobile">
                   <Input name="mobile" type="text" placeholder="Mobile Number" defaultValue={client?.mobile || ''} />
