@@ -2,6 +2,7 @@
 import React from 'react';
 import Field from '@/components/ui/form/Field';
 import { Input } from '@/components/ui/input';
+import { NumberInput } from '@/components/ui/number-input';
 import type {
   PersonalBalanceSheetItem,
   BalanceFrequency,
@@ -72,20 +73,24 @@ export default function BalanceInvestmentEditor({
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Field label="Description" className="md:col-span-2" error={descriptionError}>
           <Input
+            required
             value={item.description ?? ''}
             onChange={(e) => onChange({ ...item, description: e.target.value })}
+            onBlur={(e) => {
+              const v = (e.target.value ?? '').trim();
+              if (!v) {
+                const toTitle = (s: string) => s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+                onChange({ ...item, description: toTitle(String(item.type)) });
+              }
+            }}
           />
         </Field>
         <Field label="Investment value">
-          <Input
-            type="number"
-            inputMode="numeric"
-            value={(item.ite.investment_value ?? '') as any}
+          <NumberInput
+            value={item.ite.investment_value ?? null}
+            onValueChange={(v) => onChange({ ...item, ite: { ...item.ite, investment_value: (v == null ? null : Math.round(v)) } })}
+            decimals={0}
             placeholder="value"
-            onChange={(e) => {
-              const v = e.target.value === '' ? null : Math.round(Number(e.target.value));
-              onChange({ ...item, ite: { ...item.ite, investment_value: v } });
-            }}
           />
         </Field>
         <Field label="Currency">
@@ -101,16 +106,14 @@ export default function BalanceInvestmentEditor({
       {hasContribution && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Field label="Contribution">
-            <Input
-              type="number"
-              inputMode="numeric"
-              value={displayContrib as any}
-              placeholder="amount"
-              onChange={(e) => {
-                const v = e.target.value === '' ? null : Math.round(Number(e.target.value));
+            <NumberInput
+              value={(contrib.periodic_amount ?? null) as any}
+              onValueChange={(v) => {
                 const cf = ensureContribution();
-                onChange({ ...item, ite: { ...item.ite, contribution: { ...cf, periodic_amount: v } } });
+                onChange({ ...item, ite: { ...item.ite, contribution: { ...cf, periodic_amount: (v == null ? null : Math.round(v)) } } });
               }}
+              decimals={0}
+              placeholder="amount"
             />
           </Field>
           <Field label="Frequency">
@@ -152,16 +155,14 @@ export default function BalanceInvestmentEditor({
       {hasIncome && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Field label={incomeLabel}>
-            <Input
-              type="number"
-              inputMode="numeric"
-              value={displayIncome as any}
-              placeholder="amount"
-              onChange={(e) => {
-                const v = e.target.value === '' ? null : Math.round(Number(e.target.value));
+            <NumberInput
+              value={(income.periodic_amount ?? null) as any}
+              onValueChange={(v) => {
                 const cf = ensureIncome();
-                onChange({ ...item, ite: { ...item.ite, income: { ...cf, periodic_amount: v } } });
+                onChange({ ...item, ite: { ...item.ite, income: { ...cf, periodic_amount: (v == null ? null : Math.round(v)) } } });
               }}
+              decimals={0}
+              placeholder="amount"
             />
           </Field>
           <Field label="Frequency">

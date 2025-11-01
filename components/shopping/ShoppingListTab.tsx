@@ -1,10 +1,9 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useShoppingList } from '@/components/shopping/ShoppingListContext';
 import { useTeam } from '@/app/(dashboard)/dashboard/TeamContext';
 import { useSelectedClient } from '@/app/(dashboard)/dashboard/SelectedClientContext';
-import { loadIdentity } from '@/lib/api/identity';
-import { loadBalanceSheet } from '@/lib/api/balance';
+// We intentionally send a minimal payload (no identity/balance) for composing emails
 
 export default function ShoppingListTab() {
   const shopping = useShoppingList();
@@ -17,6 +16,7 @@ export default function ShoppingListTab() {
   const [sending, setSending] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [sendStatus, setSendStatus] = useState<null | { sent?: boolean; message_id?: string | null; error?: string }>(null);
+  const composingRef = useRef(false);
 
   if (!items.length) return <div className="p-4 text-sm text-muted-foreground">No items in your shopping list yet.</div>;
 
@@ -42,8 +42,10 @@ export default function ShoppingListTab() {
           disabled={!team?.id || !selectedClient?.client_id || !items.length || sending}
           onClick={async () => {
             if (!team?.id || !selectedClient?.client_id) return;
+            if (composingRef.current) return; // hard guard against double-submit
             try {
               setSending(true);
+              composingRef.current = true;
               // Preflight: ensure the selected client still exists; if not, clear selection and surface a clear error
               try {
                 const verify = await fetch(`/api/clients/${selectedClient.client_id}`, { cache: 'no-store' });
@@ -56,21 +58,15 @@ export default function ShoppingListTab() {
                 if (e instanceof Error) throw e;
                 throw new Error('Could not verify selected client. Please re-select and try again.');
               }
-              const [identity_model, bs] = await Promise.all([
-                loadIdentity<any>(team.id, selectedClient.client_id),
-                loadBalanceSheet<any>(team.id, selectedClient.client_id),
-              ]);
-              const person_summary = (bs && typeof bs === 'object' ? bs : {}) as any;
+              // Minimal payload only: shopping list and ids
               const payload = {
                 team_id: team.id,
                 client_id: selectedClient.client_id,
                 shopping_list: items,
-                identity_model,
-                person_summary,
               };
               const res = await fetch('/shopping/get_email', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'X-Compose-Mode': 'minimal' },
                 body: JSON.stringify(payload),
               });
               if (!res.ok) {
@@ -94,6 +90,7 @@ export default function ShoppingListTab() {
               setSubject("");
             } finally {
               setSending(false);
+              composingRef.current = false;
             }
           }}
         >

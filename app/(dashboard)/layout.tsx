@@ -61,7 +61,7 @@ function UserMenu() {
 
   return (
     <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
-      <DropdownMenuTrigger>
+      <DropdownMenuTrigger data-testid="user-menu-trigger">
         <Avatar className="cursor-pointer size-9">
           <AvatarImage alt={user.name || ''} />
           <AvatarFallback>{getInitials(user)}</AvatarFallback>
@@ -76,7 +76,7 @@ function UserMenu() {
         </DropdownMenuItem>
         <form action={handleSignOut} className="w-full">
           <button type="submit" className="flex w-full">
-            <DropdownMenuItem className="w-full flex-1 cursor-pointer">
+            <DropdownMenuItem data-testid="menu-item-sign-out" className="w-full flex-1 cursor-pointer">
               <LogOut className="mr-2 h-4 w-4" />
               <span>Sign out</span>
             </DropdownMenuItem>

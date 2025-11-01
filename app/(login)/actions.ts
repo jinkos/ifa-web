@@ -101,6 +101,32 @@ export const signIn = validatedAction(signInSchema, async (data, formData) => {
   redirect('/dashboard');
 });
 
+// Helper action: programmatically sign in with provided credentials.
+// Useful for demos/tests where we want to trigger auth without a visible form.
+export async function signInWithCreds(params?: {
+  email?: string;
+  password?: string;
+  redirect?: string | null;
+}) {
+  const email = params?.email ?? process.env.DEMO_LOGIN_EMAIL ?? '';
+  const password = params?.password ?? process.env.DEMO_LOGIN_PASSWORD ?? '';
+  const redirectTo = params?.redirect ?? '';
+
+  if (!email || !password) {
+    return { error: 'Missing demo credentials. Set DEMO_LOGIN_EMAIL and DEMO_LOGIN_PASSWORD in .env.' };
+  }
+
+  const formData = new FormData();
+  formData.set('email', email);
+  formData.set('password', password);
+  formData.set('redirect', redirectTo);
+  // Reuse existing validated server action (will handle redirect on success)
+  return (signIn as unknown as (
+    prevState: Record<string, any>,
+    formData: FormData
+  ) => Promise<any>)({}, formData);
+}
+
 const signUpSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),

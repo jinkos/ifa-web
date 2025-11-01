@@ -2,13 +2,13 @@
 import { useState, useEffect } from 'react';
 import { useSelectedClient } from '../SelectedClientContext';
 import { useTeam } from '../TeamContext';
-import RetirementGoalsSection from './components/RetirementGoalsSection';
-import EmploymentSection from './components/EmploymentSection';
+// Retirement goals and employment moved to Identity page
 import BalanceSheetSection from './components/BalanceSheetSection';
 import type { PersonalBalanceSheetItem, BalanceSheetItemKind } from '@/lib/types/balance';
 import { extractBalance } from '@/lib/api/balance';
 import { loadBalanceSheet, saveBalanceSheet } from '@/lib/api/balance';
-import type { BalancePersonSummary, CashFlow, BalanceEmploymentStatus, BalanceFrequency } from '@/lib/types/balance';
+import { loadIdentity, saveIdentity } from '@/lib/api/identity';
+import type { CashFlow, BalanceEmploymentStatus, BalanceFrequency, ItemsOnlyBalance } from '@/lib/types/balance';
 import { preferNonBlank, isBlank } from '@/lib/utils';
 
 type CashflowItem = {
@@ -66,6 +66,8 @@ export default function BalanceSheetPage() {
   const [extracting, setExtracting] = useState(false);
   const [extractError, setExtractError] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<Suggestions | null>(null);
+  // Dev-only contract banner
+  const [devIssues, setDevIssues] = useState<string[]>([]);
 
   // Helper: convert PBS CashFlow to legacy-like CashflowItem used in the UI merge step
   const toCashflowItemFromPBS = (cf?: CashFlow | null): CashflowItem | null => {
@@ -91,10 +93,35 @@ export default function BalanceSheetPage() {
       if (!team?.id || !selectedClient?.client_id) return;
       setLoading(true);
       try {
-        // Try balance storage first
-        const b = (await loadBalanceSheet<BalancePersonSummary>(team.id, selectedClient.client_id)) || {};
-        const hasBalance = b && typeof b === 'object' && Object.keys(b).length > 0;
-        if (!ignore && hasBalance) {
+        const [identity, b] = await Promise.all([
+          loadIdentity<any>(team.id, selectedClient.client_id).catch(() => ({} as any)),
+          loadBalanceSheet<ItemsOnlyBalance>(team.id, selectedClient.client_id).catch(() => ({} as any)),
+        ]);
+        if (!ignore) {
+          // Normalize incoming items to align with Pydantic (description required; currency string or omitted)
+          const normalizeItems = (arr: any[]): PersonalBalanceSheetItem[] => {
+            const toTitle = (s: string) => s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+            return (Array.isArray(arr) ? arr : []).map((it: any) => {
+              const desc = typeof it?.description === 'string' && it.description.trim().length > 0
+                ? it.description
+                : toTitle(String(it?.type ?? 'item'));
+              const out: any = { ...it, description: desc };
+              if (!out.currency) delete out.currency;
+              return out as PersonalBalanceSheetItem;
+            });
+          };
+          // Dev contract checks (UI surface)
+          if (process.env.NODE_ENV !== 'production') {
+            const issues: string[] = [];
+            const legacyKeys = ['target_retirement_age','target_retirement_income','employment_status','occupation'];
+            const idHasTRA = Object.prototype.hasOwnProperty.call(identity ?? {}, 'target_retirement_age');
+            const idHasTRI = Object.prototype.hasOwnProperty.call(identity ?? {}, 'target_retirement_income');
+            if (!idHasTRA && !idHasTRI) issues.push('Identity payload missing retirement fields (target_retirement_*)');
+            const foundLegacy = legacyKeys.filter((k) => Object.prototype.hasOwnProperty.call((b as any) ?? {}, k));
+            if (foundLegacy.length > 0) issues.push(`Balance response includes legacy fields: ${foundLegacy.join(', ')}`);
+            if (!Array.isArray((b as any)?.balance_sheet)) issues.push('Balance response missing items array: balance_sheet');
+            setDevIssues(issues);
+          }
           const toCashflowItem = (cf?: CashFlow | null): CashflowItem | null => {
             if (!cf) return null;
             const freq: CashflowItem['frequency'] = ((): CashflowItem['frequency'] => {
@@ -123,11 +150,11 @@ export default function BalanceSheetPage() {
             return s ? (m[s] ?? '') : '';
           };
           setForm({
-            target_retirement_age: (b as any).target_retirement_age ?? null,
-            target_retirement_income: toCashflowItem((b as any).target_retirement_income),
-            employment_status: toEmployment((b as any).employment_status ?? null),
-            occupation: (b as any).occupation ?? '',
-            balance_sheet: Array.isArray((b as any).balance_sheet) ? ((b as any).balance_sheet as PersonalBalanceSheetItem[]) : [],
+            target_retirement_age: (identity as any)?.target_retirement_age ?? null,
+            target_retirement_income: toCashflowItem((identity as any)?.target_retirement_income),
+            employment_status: toEmployment((identity as any)?.employment_status ?? null),
+            occupation: (identity as any)?.occupation ?? '',
+            balance_sheet: Array.isArray((b as any)?.balance_sheet) ? normalizeItems((b as any).balance_sheet) : [],
           });
         }
       } catch (error) {
@@ -148,7 +175,7 @@ export default function BalanceSheetPage() {
       if (!team?.id || !selectedClient?.client_id || loading) return;
       setSaving(true);
       try {
-        // Convert UI form to BalancePersonSummary and save to balance storage
+        // Mappers
         const toBalanceFrequency = (f?: CashflowItem['frequency'] | null): BalanceFrequency => {
           return f === 'weekly' || f === 'monthly' || f === 'quarterly' || f === 'annually' ? f : 'unknown';
         };
@@ -175,14 +202,32 @@ export default function BalanceSheetPage() {
           } as const;
           return m[s] ?? 'other';
         };
-        const payload: BalancePersonSummary = {
+
+        // Save identity fields separately
+        const identityPayload = {
           target_retirement_age: form.target_retirement_age ?? null,
           target_retirement_income: toCashFlow(form.target_retirement_income),
           employment_status: toEmployment(form.employment_status),
           occupation: form.occupation ?? null,
-          balance_sheet: Array.isArray(form.balance_sheet) ? form.balance_sheet : [],
+        } as any;
+        await saveIdentity(team.id, selectedClient.client_id, identityPayload);
+        // Save items-only balance
+        // Normalize before saving to avoid server-side 422s if legacy data lacked description/currency
+        const normalizeBeforeSave = (arr: PersonalBalanceSheetItem[]): PersonalBalanceSheetItem[] => {
+          const toTitle = (s: string) => s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+          return (Array.isArray(arr) ? arr : []).map((it: any) => {
+            const desc = typeof it?.description === 'string' && it.description.trim().length > 0
+              ? it.description
+              : toTitle(String(it?.type ?? 'item'));
+            const out: any = { ...it, description: desc };
+            if (!out.currency) delete out.currency;
+            return out as PersonalBalanceSheetItem;
+          });
         };
-        await saveBalanceSheet(team.id, selectedClient.client_id, payload);
+        const itemsOnly: ItemsOnlyBalance = {
+          balance_sheet: normalizeBeforeSave(Array.isArray(form.balance_sheet) ? form.balance_sheet : []),
+        };
+        await saveBalanceSheet(team.id, selectedClient.client_id, itemsOnly);
         setLastSaved(new Date());
       } catch (error) {
         console.error('Failed to save balance sheet data:', error);
@@ -196,6 +241,25 @@ export default function BalanceSheetPage() {
 
   return (
     <section className="p-4 lg:p-8">
+      {process.env.NODE_ENV !== 'production' && devIssues.length > 0 && (
+        <div className="mb-4 p-3 rounded-md border border-amber-300 bg-amber-50 text-amber-900 flex items-start justify-between gap-4">
+          <div>
+            <div className="font-medium">Developer checks</div>
+            <ul className="mt-1 list-disc list-inside text-sm">
+              {devIssues.map((m, i) => (
+                <li key={i}>{m}</li>
+              ))}
+            </ul>
+          </div>
+          <button
+            className="text-xs px-2 py-1 border rounded border-amber-400 hover:bg-amber-100"
+            onClick={() => setDevIssues([])}
+            title="Dismiss"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-semibold mb-2">Balance Sheet</h1>
@@ -463,118 +527,7 @@ export default function BalanceSheetPage() {
         <div className="text-center py-8 text-muted-foreground">Loading...</div>
       ) : (
         <div className="max-w-4xl">
-          <RetirementGoalsSection
-            form={form}
-            setForm={setForm}
-            suggestions={
-              suggestions
-                ? {
-                    target_retirement_age: suggestions.target_retirement_age,
-                    target_retirement_income: suggestions.target_retirement_income ?? undefined,
-                  }
-                : null
-            }
-            onAccept={(key, subkey) => {
-              setForm((prev) => {
-                const next = { ...prev } as BalanceSheetData;
-                if (key === 'target_retirement_age') {
-                  next.target_retirement_age = suggestions?.target_retirement_age ?? null;
-                }
-                if (key === 'target_retirement_income') {
-                  const cur = next.target_retirement_income ?? {};
-                  const inc = suggestions?.target_retirement_income ?? {};
-                  if (subkey) {
-                    (cur as any)[subkey] = (inc as any)[subkey] ?? null;
-                    next.target_retirement_income = cur as any;
-                  } else {
-                    next.target_retirement_income = { ...cur, ...inc } as any;
-                  }
-                }
-                return next;
-              });
-              // Clear accepted suggestion
-              setSuggestions((prev) => {
-                if (!prev) return prev;
-                const next = { ...prev } as Suggestions;
-                if (key === 'target_retirement_age') {
-                  delete (next as any).target_retirement_age;
-                }
-                if (key === 'target_retirement_income') {
-                  if (subkey) {
-                    if (next.target_retirement_income) {
-                      delete (next.target_retirement_income as any)[subkey];
-                      if (Object.keys(next.target_retirement_income).length === 0) {
-                        delete (next as any).target_retirement_income;
-                      }
-                    }
-                  } else {
-                    delete (next as any).target_retirement_income;
-                  }
-                }
-                return Object.keys(next).length === 0 ? null : next;
-              });
-            }}
-            onReject={(key, subkey) => {
-              setSuggestions((prev) => {
-                if (!prev) return prev;
-                const next = { ...prev } as Suggestions;
-                if (key === 'target_retirement_age') {
-                  delete (next as any).target_retirement_age;
-                }
-                if (key === 'target_retirement_income') {
-                  if (subkey) {
-                    if (next.target_retirement_income) {
-                      delete (next.target_retirement_income as any)[subkey];
-                      if (Object.keys(next.target_retirement_income).length === 0) {
-                        delete (next as any).target_retirement_income;
-                      }
-                    }
-                  } else {
-                    delete (next as any).target_retirement_income;
-                  }
-                }
-                return Object.keys(next).length === 0 ? null : next;
-              });
-            }}
-          />
-          <EmploymentSection
-            form={form}
-            setForm={setForm}
-            suggestions={
-              suggestions
-                ? {
-                    employment_status: suggestions.employment_status,
-                    occupation: suggestions.occupation,
-                  }
-                : null
-            }
-            onAccept={(key) => {
-              setForm((prev) => {
-                const next = { ...prev } as BalanceSheetData;
-                if (key === 'employment_status') {
-                  next.employment_status = (suggestions?.employment_status as EmploymentStatus) ?? '';
-                }
-                if (key === 'occupation') {
-                  next.occupation = (suggestions?.occupation as string) ?? '';
-                }
-                return next;
-              });
-              setSuggestions((prev) => {
-                if (!prev) return prev;
-                const next = { ...prev } as Suggestions;
-                delete (next as any)[key];
-                return Object.keys(next).length === 0 ? null : next;
-              });
-            }}
-            onReject={(key) => {
-              setSuggestions((prev) => {
-                if (!prev) return prev;
-                const next = { ...prev } as Suggestions;
-                delete (next as any)[key];
-                return Object.keys(next).length === 0 ? null : next;
-              });
-            }}
-          />
+          {/* Retirement goals and Work moved to Identity page */}
           <BalanceSheetSection
             items={form.balance_sheet}
             onChange={(next) => setForm((prev) => ({ ...prev, balance_sheet: next }))}

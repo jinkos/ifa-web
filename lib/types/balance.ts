@@ -95,7 +95,7 @@ export type BalanceSheetItemKind =
   | 'student_loan'
   | 'main_residence'
   | 'holiday_home'
-  | 'car'
+  | 'other_valuable_item'
   | 'workplace_pension'
   | 'defined_benefit_pension'
   | 'personal_pension'
@@ -103,10 +103,12 @@ export type BalanceSheetItemKind =
 
 type BalanceSheetBase<K extends BalanceSheetItemKind> = {
   type: K;
-  currency?: CurrencyCode | null;
-  id?: string;
+  // Currency is a string (server defaults to 'GBP' when omitted). Avoid nulls to match Pydantic.
+  currency?: CurrencyCode;
+  id?: number | string;
   __localId?: string;
-  description?: string | null;
+  // Description is required by Pydantic BalanceSheetModel.BSItem
+  description: string;
 };
 
 // INCOME ITEMS (use IncomeData)
@@ -178,7 +180,7 @@ export type HolidayHomeItem = BalanceSheetBase<'holiday_home'> & {
   ite: PropertyData;
 };
 
-export type CarItem = BalanceSheetBase<'car'> & {
+export type OtherValuableItem = BalanceSheetBase<'other_valuable_item'> & {
   ite: PropertyData;
 };
 
@@ -223,21 +225,35 @@ export type PersonalBalanceSheetItem =
   | StudentLoanItem
   | MainResidenceItem
   | HolidayHomeItem
-  | CarItem
+  | OtherValuableItem
   | WorkplacePensionItem
   | DefinedBenefitPensionItem
   | PersonalPensionItem
   | StatePensionItem
   | ExpensesItem;
 
+/**
+ * Legacy v1 balance shape used by the Balance Sheet editor while the API still carries
+ * employment/retirement fields. Prefer using ItemsOnlyBalance for new code.
+ */
+/**
+ * Deprecated legacy shape retained for compatibility with old imports.
+ * In v2, balance only contains items; person/retirement fields live in IdentityModel.
+ * Use ItemsOnlyBalance instead.
+ */
 export interface BalancePersonSummary {
-  target_retirement_age?: number | null;
-  target_retirement_income?: CashFlow | null;
-  employment_status?: BalanceEmploymentStatus | null;
-  occupation?: string | null;
-
   balance_sheet: PersonalBalanceSheetItem[];
 }
+
+/**
+ * v2 items-only balance shape. No person/retirement fields; just the list of items.
+ */
+export interface ItemsOnlyBalance {
+  balance_sheet: PersonalBalanceSheetItem[];
+}
+
+// For clarity, this mirrors the server-side Pydantic BalanceSheetModel
+export type BalanceSheetModel = ItemsOnlyBalance;
 
 export type BalanceSheetIncomeItem =
   | SalaryIncomeItem
@@ -255,7 +271,7 @@ export type BalanceSheetAssetItem =
   | VentureCapitalTrustItem
   | MainResidenceItem
   | HolidayHomeItem
-  | CarItem;
+  | OtherValuableItem;
 
 export type BalanceSheetLiabilityItem =
   | CreditCardItem
@@ -275,4 +291,25 @@ export interface BalanceSheetGroup {
   label: string;
   kinds: BalanceSheetItemKind[];
   description?: string;
+}
+
+// Helper: normalize arbitrary items into a transport-safe BalanceSheetModel
+export function toBalanceSheetModel(input: any): BalanceSheetModel {
+  const arr: any[] = Array.isArray(input?.balance_sheet) ? input.balance_sheet : Array.isArray(input) ? input : [];
+  const toTitle = (s: string) => s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  const items: PersonalBalanceSheetItem[] = arr.map((raw: any) => {
+    // Normalize legacy type names (e.g., 'car' -> 'other_valuable_item')
+    let t = String(raw?.type ?? 'current_account');
+    if (t === 'car') t = 'other_valuable_item';
+    const type = t as BalanceSheetItemKind;
+    const description = typeof raw?.description === 'string' && raw.description.trim().length > 0
+      ? raw.description
+      : toTitle(type);
+    const currency = typeof raw?.currency === 'string' && raw.currency.trim().length > 0 ? raw.currency : undefined;
+    const ite = (raw?.ite && typeof raw.ite === 'object') ? raw.ite : {};
+    const base: any = { type, description };
+    if (currency) base.currency = currency; // omit to allow server default 'GBP'
+    return { ...base, ite } as PersonalBalanceSheetItem;
+  });
+  return { balance_sheet: items };
 }
