@@ -116,7 +116,7 @@ While this template is intentionally minimal and to be used as a learning resour
 
 This project migrated from a legacy PersonSummary model to BalancePersonSummary.
 
-- Storage/API: Use `/api/balance` for load/save. The legacy `/api/summary` now returns HTTP 410 Gone.
-- Extraction: Use `extract_balance` via `/api/docs/extract_balance`. The legacy `/api/docs/extract_summary` returns HTTP 410 Gone.
+- Storage/API: Use `/api/balance` for load/save. The legacy `/api/summary` endpoint has been removed.
+- Extraction: Use `extract_balance` via `/api/docs/extract_balance`. The legacy `/api/docs/extract_summary` endpoint has been removed.
 - Client code: Prefer `loadBalanceSheet`, `saveBalanceSheet`, and `extractBalance` from `lib/api/balance`.
 

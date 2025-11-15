@@ -40,15 +40,16 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    const type = (data as any).type || 'application/octet-stream';
     const disposition = `${mode === 'download' ? 'attachment' : 'inline'}; filename="${encodeURIComponent(name)}"`;
 
     return new Response(data as any, {
       status: 200,
       headers: {
-        'content-type': type,
+        'content-type': data.type,
         'content-disposition': disposition,
-        'cache-control': 'no-store',
+        'cache-control': 'private, max-age=3600',
+        'accept-ranges': 'bytes',
+        'cross-origin-resource-policy': 'same-origin',
       },
     });
   } catch (e: any) {

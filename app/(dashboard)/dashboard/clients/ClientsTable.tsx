@@ -200,7 +200,7 @@ export function ClientsTable({ clients: initialClients }: { clients: Client[] })
         confirmText="Delete"
         cancelText="Cancel"
       />
-      <table className="min-w-full divide-y divide-gray-200">
+      <table className="min-w-full divide-y divide-gray-200" data-testid="clients-table">
         <thead>
           <tr>
             <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-8"></th>
@@ -218,7 +218,7 @@ export function ClientsTable({ clients: initialClients }: { clients: Client[] })
             clients.map((client: Client) => {
               const isSelected = selectedClient?.client_id === client.client_id;
               return (
-                <tr key={client.client_id}>
+                <tr key={client.client_id} data-testid="clients-row" data-client-id={client.client_id}>
                   <td className="px-2 py-4 whitespace-nowrap w-8">
                     <button
                       aria-label={isSelected ? 'Selected client' : 'Select client'}
@@ -230,15 +230,15 @@ export function ClientsTable({ clients: initialClients }: { clients: Client[] })
                       <Check className="w-5 h-5" stroke={isSelected ? 'black' : '#d1d5db'} />
                     </button>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">{client.name}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">{client.email || '-'} </td>
+                  <td className="px-6 py-4 whitespace-nowrap"><span data-testid="client-name">{client.name}</span></td>
+                  <td className="px-6 py-4 whitespace-nowrap"><span data-testid="client-email">{client.email || '-'}</span> </td>
                   <td className="px-6 py-4 whitespace-nowrap flex gap-2">
                     <Link href={`/dashboard/clients/client_details/${client.client_id}`}>
-                      <Button size="sm" variant="outline" aria-label="Edit client">
+                      <Button size="sm" variant="outline" aria-label="Edit client" data-testid="client-edit-button">
                         <Pencil className="w-4 h-4" />
                       </Button>
                     </Link>
-                    <Button size="sm" variant="ghost" onClick={() => handleDelete(client.client_id, client.name)} disabled={deletingId === client.client_id} aria-label="Delete client">
+                    <Button size="sm" variant="ghost" onClick={() => handleDelete(client.client_id, client.name)} disabled={deletingId === client.client_id} aria-label="Delete client" data-testid="client-delete-button">
                       <Trash2 className="w-4 h-4 text-red-500" />
                     </Button>
                   </td>

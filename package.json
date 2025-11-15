@@ -13,7 +13,9 @@
     "db:seed": "npx tsx lib/db/seed.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "cleanup:gary": "npx tsx scripts/cleanup-gary.ts",
+    "list:clients": "npx tsx scripts/list-clients.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",

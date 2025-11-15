@@ -29,6 +29,59 @@ export interface CashFlow {
   net_gross: NetGrossIndicator;
 }
 
+// Shared constants and formatters for UI and validation reuse
+export const BALANCE_FREQUENCIES: readonly BalanceFrequency[] = [
+  'weekly',
+  'monthly',
+  'quarterly',
+  'six_monthly',
+  'annually',
+  'unknown',
+] as const;
+
+export const NET_GROSS_VALUES: readonly NetGrossIndicator[] = [
+  'net',
+  'gross',
+  'unknown',
+] as const;
+
+// Employment statuses used in Identity and Balance contexts
+export const BALANCE_EMPLOYMENT_STATUSES: readonly BalanceEmploymentStatus[] = [
+  'employed',
+  'self_employed',
+  'retired',
+  'full_time_education',
+  'independent_means',
+  'homemaker',
+  'other',
+] as const;
+
+export function formatFrequency(f: BalanceFrequency): string {
+  switch (f) {
+    case 'six_monthly':
+      return 'Six monthly';
+    default:
+      return f.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+}
+
+export function formatNetGross(ng: NetGrossIndicator): string {
+  return ng.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+export function formatEmploymentStatus(s: BalanceEmploymentStatus): string {
+  switch (s) {
+    case 'self_employed':
+      return 'Self-employed';
+    case 'full_time_education':
+      return 'Full-time education';
+    case 'independent_means':
+      return 'Independent means';
+    default:
+      return s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+}
+
 export interface Debt {
   balance?: number | null;
   repayment?: CashFlow | null;
@@ -241,9 +294,7 @@ export type PersonalBalanceSheetItem =
  * In v2, balance only contains items; person/retirement fields live in IdentityModel.
  * Use ItemsOnlyBalance instead.
  */
-export interface BalancePersonSummary {
-  balance_sheet: PersonalBalanceSheetItem[];
-}
+// Removed legacy v1 BalancePersonSummary in favor of items-only balance model
 
 /**
  * v2 items-only balance shape. No person/retirement fields; just the list of items.
@@ -295,12 +346,11 @@ export interface BalanceSheetGroup {
 
 // Helper: normalize arbitrary items into a transport-safe BalanceSheetModel
 export function toBalanceSheetModel(input: any): BalanceSheetModel {
-  const arr: any[] = Array.isArray(input?.balance_sheet) ? input.balance_sheet : Array.isArray(input) ? input : [];
+  // Strict items-only contract: require an object with a balance_sheet array
+  const arr: any[] = Array.isArray(input?.balance_sheet) ? input.balance_sheet : [];
   const toTitle = (s: string) => s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   const items: PersonalBalanceSheetItem[] = arr.map((raw: any) => {
-    // Normalize legacy type names (e.g., 'car' -> 'other_valuable_item')
-    let t = String(raw?.type ?? 'current_account');
-    if (t === 'car') t = 'other_valuable_item';
+    const t = String(raw?.type ?? 'current_account');
     const type = t as BalanceSheetItemKind;
     const description = typeof raw?.description === 'string' && raw.description.trim().length > 0
       ? raw.description

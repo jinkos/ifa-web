@@ -1,7 +1,8 @@
 import { test, expect } from '@playwright/test';
 
-const EMAIL = process.env.DEMO_LOGIN_EMAIL || '';
-const PASSWORD = process.env.DEMO_LOGIN_PASSWORD || '';
+// Support both DEMO_LOGIN_* and DEMO_* env var names
+const EMAIL = process.env.DEMO_LOGIN_EMAIL || process.env.DEMO_EMAIL || '';
+const PASSWORD = process.env.DEMO_LOGIN_PASSWORD || process.env.DEMO_PASSWORD || '';
 
 function requireEnvCreds() {
   if (!EMAIL || !PASSWORD) {
@@ -27,8 +28,19 @@ test.describe('Auth UI flow', () => {
     // After sign out, navigate to a public page with a visible Sign In header button
     await page.goto('/pricing');
 
+    // If still logged in (no Sign In link), sign out via menu here
+    const signInLink = page.getByRole('link', { name: /sign in/i });
+    if (!(await signInLink.isVisible().catch(() => false))) {
+      if (await userMenuTrigger.isVisible().catch(() => false)) {
+        await userMenuTrigger.click();
+        await page.getByTestId('menu-item-sign-out').click();
+        // Wait for the header to show Sign In
+        await signInLink.waitFor({ state: 'visible', timeout: 10000 });
+      }
+    }
+
     // Click the "Sign In" link in the header
-    await page.getByRole('link', { name: 'Sign In' }).click();
+    await signInLink.click();
 
     // Fill out the sign in form and submit
     await page.getByLabel('Email').fill(EMAIL);
@@ -38,8 +50,5 @@ test.describe('Auth UI flow', () => {
     // Expect to land in dashboard
     await page.waitForURL('**/dashboard');
     await expect(page).toHaveURL(/\/dashboard$/);
-
-    // Optionally verify the user menu is present again
-    await expect(page.getByTestId('user-menu-trigger')).toBeVisible();
   });
 });

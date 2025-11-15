@@ -3,18 +3,8 @@ import React from 'react';
 import Field from '@/components/ui/form/Field';
 import { Input } from '@/components/ui/input';
 import { NumberInput } from '@/components/ui/number-input';
-import type { PersonalBalanceSheetItem, BalanceFrequency, NetGrossIndicator, CashFlow, Debt } from '@/lib/types/balance';
-
-const freqOptions: BalanceFrequency[] = [
-  'weekly',
-  'monthly',
-  'quarterly',
-  'six_monthly',
-  'annually',
-  'unknown',
-];
-
-const ngOptions: NetGrossIndicator[] = ['net', 'gross', 'unknown'];
+import { CashFlowFieldset } from '@/components/ui/form/CashFlowFieldset';
+import type { PersonalBalanceSheetItem, CashFlow, Debt } from '@/lib/types/balance';
 
 export default function BalanceBuyToLetEditor({
   item,
@@ -68,56 +58,15 @@ export default function BalanceBuyToLetEditor({
         </Field>
       </div>
       {/* Row 2: Rent amount, frequency, net/gross */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Field label="Rent">
-          <NumberInput
-            value={(rental.periodic_amount ?? null) as any}
-            placeholder="amount"
-            onValueChange={(v) => {
-              const val = v == null ? null : Math.round(v);
-              onChange({ ...item, ite: { ...item.ite, rental_income: { ...rental, periodic_amount: val } } });
-            }}
-          />
-        </Field>
-        <Field label="Frequency">
-          <select
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            value={rental.frequency}
-            onChange={(e) =>
-              onChange({
-                ...item,
-                ite: { ...item.ite, rental_income: { ...rental, frequency: e.target.value as BalanceFrequency } },
-              })
-            }
-          >
-            {freqOptions.map((f) => (
-              <option key={f} value={f}>
-                {f.replace(/_/g, ' ')}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Net/Gross">
-          <select
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            value={rental.net_gross}
-            onChange={(e) =>
-              onChange({
-                ...item,
-                ite: { ...item.ite, rental_income: { ...rental, net_gross: e.target.value as NetGrossIndicator } },
-              })
-            }
-          >
-            {ngOptions.map((ng) => (
-              <option key={ng} value={ng}>
-                {ng}
-              </option>
-            ))}
-          </select>
-        </Field>
+      <div className="md:col-span-3">
+        <CashFlowFieldset
+          label="Rent"
+          value={rental}
+          onChange={(next) => onChange({ ...item, ite: { ...item.ite, rental_income: next } })}
+        />
       </div>
 
-      {/* Row 3: Mortgage balance, repayment, frequency, net/gross */}
+      {/* Row 3: Mortgage balance and repayment */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Field label="Mortgage Balance">
           <NumberInput
@@ -130,52 +79,16 @@ export default function BalanceBuyToLetEditor({
             }}
           />
         </Field>
-        <Field label="Repayment">
-          <NumberInput
-            value={(item.ite.loan?.repayment?.periodic_amount ?? null) as any}
-            placeholder="amount"
-            onValueChange={(v) => {
-              const val = v == null ? null : Math.round(v);
+        <div className="md:col-span-3">
+          <CashFlowFieldset
+            label="Repayment"
+            value={item.ite.loan?.repayment ?? null}
+            onChange={(next) => {
               const loan = ensureLoan();
-              const repay = ensureRepayment();
-              onChange({ ...item, ite: { ...item.ite, loan: { ...loan, repayment: { ...repay, periodic_amount: val } } } });
+              onChange({ ...item, ite: { ...item.ite, loan: { ...loan, repayment: next } } });
             }}
           />
-        </Field>
-        <Field label="Frequency">
-          <select
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            value={item.ite.loan?.repayment?.frequency ?? 'unknown'}
-            onChange={(e) => {
-              const loan = ensureLoan();
-              const repay = ensureRepayment();
-              onChange({ ...item, ite: { ...item.ite, loan: { ...loan, repayment: { ...repay, frequency: e.target.value as BalanceFrequency } } } });
-            }}
-          >
-            {freqOptions.map((f) => (
-              <option key={f} value={f}>
-                {f.replace(/_/g, ' ')}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Net/Gross">
-          <select
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            value={item.ite.loan?.repayment?.net_gross ?? 'unknown'}
-            onChange={(e) => {
-              const loan = ensureLoan();
-              const repay = ensureRepayment();
-              onChange({ ...item, ite: { ...item.ite, loan: { ...loan, repayment: { ...repay, net_gross: e.target.value as NetGrossIndicator } } } });
-            }}
-          >
-            {ngOptions.map((ng) => (
-              <option key={ng} value={ng}>
-                {ng}
-              </option>
-            ))}
-          </select>
-        </Field>
+        </div>
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTeamForUser } from '@/lib/db/queries';
 import { getJson, putJson } from '@/lib/storage/json';
+import { toBalanceSheetModel } from '@/lib/types/balance';
 
 export const runtime = 'nodejs';
 
@@ -20,10 +21,9 @@ export async function GET(req: NextRequest) {
     }
 
   const data = await getJson<any>(teamId, clientId, 'balance');
-  // Ensure items-only payload contract with a default empty items array
-  const defaults = { balance_sheet: [] as any[] };
-  const balance = { ...defaults, ...(data ?? {}) };
-  return NextResponse.json(balance);
+  // Normalize to contract: items-only payload with a default empty items array
+  const model = toBalanceSheetModel(data ?? {});
+  return NextResponse.json(model);
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Failed to load balance sheet' }, { status: 500 });
   }
@@ -46,12 +46,24 @@ export async function PUT(req: NextRequest) {
 
     const payload = await req.json();
 
-    // Ensure each balance_sheet item has a stable integer id for client-side mappings (assumptions, UI state)
+    // Normalize payload to contract and ensure each item has a stable integer id
     const withIds = (() => {
       try {
-        if (payload && Array.isArray(payload.balance_sheet)) {
+        // Keep original raw items to preserve incoming ids (including non-numeric strings)
+        const rawItems: any[] = Array.isArray((payload as any)?.balance_sheet)
+          ? (payload as any).balance_sheet
+          : Array.isArray(payload)
+            ? (payload as any)
+            : [];
+        const model = toBalanceSheetModel(payload ?? {});
+        if (Array.isArray(model.balance_sheet)) {
+          // Reattach incoming ids from raw payload by index
+          const reattached = model.balance_sheet.map((it: any, i: number) => {
+            const incomingId = rawItems[i]?.id;
+            return incomingId !== undefined ? { ...it, id: incomingId } : it;
+          });
           // Determine the next integer id based on existing ids (numbers or numeric strings)
-          const existingNumericIds: number[] = payload.balance_sheet
+          const existingNumericIds: number[] = reattached
             .map((it: any) => it?.id)
             .map((v: any) => {
               const n = typeof v === 'number' ? v : (typeof v === 'string' ? Number(v) : NaN);
@@ -60,17 +72,17 @@ export async function PUT(req: NextRequest) {
             .filter((n: number) => Number.isFinite(n));
           let nextId = existingNumericIds.length > 0 ? Math.max(...existingNumericIds) : 0;
 
-          const nextItems = payload.balance_sheet.map((it: any) => {
+          const nextItems = reattached.map((it: any) => {
             if (it && (it.id == null || it.id === '')) {
               nextId += 1;
               return { ...it, id: nextId };
             }
             return it;
           });
-          return { ...payload, balance_sheet: nextItems };
+          return { ...model, balance_sheet: nextItems };
         }
       } catch {}
-      return payload;
+      return toBalanceSheetModel(payload ?? {});
     })();
 
     await putJson(teamId, clientId, 'balance', withIds);

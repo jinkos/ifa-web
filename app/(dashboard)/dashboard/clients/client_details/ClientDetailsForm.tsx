@@ -52,6 +52,23 @@ export default function ClientDetailsForm({ clientId }: { clientId: string }) {
     };
   }, [clientId]);
 
+  // Auto-submit logic - must be declared before early returns
+  const isNew = clientId === 'new';
+  const autoName = searchParams.get('autofill_name') || undefined;
+  const autoEmail = searchParams.get('autofill_email') || undefined;
+  const doAutoSubmit = searchParams.get('autosubmit') === '1';
+
+  useEffect(() => {
+    if (!isNew) return;
+    if (!doAutoSubmit) return;
+    if (autoSubmitRan.current) return;
+    autoSubmitRan.current = true;
+    // Delay a tick to ensure defaultValue is rendered
+    setTimeout(() => {
+      formRef.current?.requestSubmit();
+    }, 0);
+  }, [isNew, doAutoSubmit]);
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = e.currentTarget;
@@ -114,22 +131,6 @@ export default function ClientDetailsForm({ clientId }: { clientId: string }) {
 
   if (loading) return <div className="p-4">Loading...</div>;
   if (error) return <div className="p-4 text-red-500">{error}</div>;
-
-  const isNew = clientId === 'new';
-  const autoName = searchParams.get('autofill_name') || undefined;
-  const autoEmail = searchParams.get('autofill_email') || undefined;
-  const doAutoSubmit = searchParams.get('autosubmit') === '1';
-
-  useEffect(() => {
-    if (!isNew) return;
-    if (!doAutoSubmit) return;
-    if (autoSubmitRan.current) return;
-    autoSubmitRan.current = true;
-    // Delay a tick to ensure defaultValue is rendered
-    setTimeout(() => {
-      formRef.current?.requestSubmit();
-    }, 0);
-  }, [isNew, doAutoSubmit]);
 
   return (
     <section className="flex-1 p-4 lg:p-8">

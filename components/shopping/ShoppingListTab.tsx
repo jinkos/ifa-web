@@ -64,7 +64,7 @@ export default function ShoppingListTab() {
                 client_id: selectedClient.client_id,
                 shopping_list: items,
               };
-              const res = await fetch('/shopping/get_email', {
+              const res = await fetch('/api/email/compose', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-Compose-Mode': 'minimal' },
                 body: JSON.stringify(payload),
@@ -81,6 +81,12 @@ export default function ShoppingListTab() {
                 throw new Error(message);
               }
               const data: { email_body?: string; target_email?: string; subject?: string } = await res.json();
+
+              // Check if bot is not configured
+              if (data?.email_body === 'BOT NOT CONFIGURED') {
+                throw new Error('To send emails you must set up the bot in the "Settings" tab under "Bot Configuration".');
+              }
+
               setToEmail(data?.target_email ?? "");
               setEmailBody(data?.email_body ?? "");
               setSubject(data?.subject ?? "");

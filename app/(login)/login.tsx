@@ -123,7 +123,7 @@ export function Login({ mode = 'signin' }: { mode?: 'signin' | 'signup' }) {
           open={showDemoModal}
           onClose={() => setShowDemoModal(false)}
           title="Demo access by invitation only"
-          contactEmail="ifagent@everard.me.uk"
+          contactEmail="jezbezant@gmx.com"
         />
 
         <div className="mt-6">

@@ -19,6 +19,7 @@ export default function DashboardLayout({
     // { href: '/dashboard/chat', label: 'Chat' }, // temporarily hidden
     { href: '/dashboard/identity', label: 'Identity' },
     { href: '/dashboard/balance-sheet', label: 'Balance sheet' },
+    { href: '/dashboard/statements', label: 'Statements' },
     { href: '/dashboard/shopping', label: 'Shopping list' },
     { href: '/dashboard/planning', label: 'Planning' },
     { href: '/dashboard/dev', label: 'Dev' },
