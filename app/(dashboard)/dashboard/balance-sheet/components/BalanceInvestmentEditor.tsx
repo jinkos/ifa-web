@@ -3,24 +3,8 @@ import React from 'react';
 import Field from '@/components/ui/form/Field';
 import { Input } from '@/components/ui/input';
 import { NumberInput } from '@/components/ui/number-input';
-import type {
-  PersonalBalanceSheetItem,
-  BalanceFrequency,
-  NetGrossIndicator,
-  CashFlow,
-  InvestmentData,
-} from '@/lib/types/balance';
-
-const freqOptions: BalanceFrequency[] = [
-  'weekly',
-  'monthly',
-  'quarterly',
-  'six_monthly',
-  'annually',
-  'unknown',
-];
-
-const ngOptions: NetGrossIndicator[] = ['net', 'gross', 'unknown'];
+import { CashFlowFieldset } from '@/components/ui/form/CashFlowFieldset';
+import type { PersonalBalanceSheetItem, NetGrossIndicator, InvestmentData } from '@/lib/types/balance';
 
 type InvestmentKinds =
   | 'current_account'
@@ -56,16 +40,8 @@ export default function BalanceInvestmentEditor({
   const defaultIncomeNetGross: NetGrossIndicator =
     kind === 'vct' || kind === 'premium_bond' ? 'net' : 'gross';
 
-  const ensureContribution = (): CashFlow =>
-    item.ite.contribution ?? { periodic_amount: null, frequency: 'monthly', net_gross: 'net' };
-  const ensureIncome = (): CashFlow =>
-    item.ite.income ?? { periodic_amount: null, frequency: 'monthly', net_gross: defaultIncomeNetGross };
-
-  const contrib = item.ite.contribution ?? ensureContribution();
-  const income = item.ite.income ?? ensureIncome();
-
-  const displayContrib = (contrib.periodic_amount ?? 0) === 0 && contrib.periodic_amount !== null ? '' : (contrib.periodic_amount ?? '');
-  const displayIncome = (income.periodic_amount ?? 0) === 0 && income.periodic_amount !== null ? '' : (income.periodic_amount ?? '');
+  const contrib = item.ite.contribution ?? null;
+  const income = item.ite.income ?? null;
 
   return (
     <div className="mt-3 rounded-md border p-3 bg-muted/30 space-y-4">
@@ -102,101 +78,25 @@ export default function BalanceInvestmentEditor({
         </Field>
       </div>
 
-      {/* Row 2: Contribution amount, frequency, net/gross (if applicable) */}
+      {/* Row 2: Contribution (if applicable) */}
       {hasContribution && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Field label="Contribution">
-            <NumberInput
-              value={(contrib.periodic_amount ?? null) as any}
-              onValueChange={(v) => {
-                const cf = ensureContribution();
-                onChange({ ...item, ite: { ...item.ite, contribution: { ...cf, periodic_amount: (v == null ? null : Math.round(v)) } } });
-              }}
-              decimals={0}
-              placeholder="amount"
-            />
-          </Field>
-          <Field label="Frequency">
-            <select
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              value={contrib.frequency}
-              onChange={(e) => {
-                const cf = ensureContribution();
-                onChange({ ...item, ite: { ...item.ite, contribution: { ...cf, frequency: e.target.value as BalanceFrequency } } });
-              }}
-            >
-              {freqOptions.map((f) => (
-                <option key={f} value={f}>
-                  {f.replace(/_/g, ' ')}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Net/Gross">
-            <select
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              value={contrib.net_gross}
-              onChange={(e) => {
-                const cf = ensureContribution();
-                onChange({ ...item, ite: { ...item.ite, contribution: { ...cf, net_gross: e.target.value as NetGrossIndicator } } });
-              }}
-            >
-              {ngOptions.map((ng) => (
-                <option key={ng} value={ng}>
-                  {ng}
-                </option>
-              ))}
-            </select>
-          </Field>
+        <div className="md:col-span-3">
+          <CashFlowFieldset
+            label="Contribution"
+            value={contrib}
+            onChange={(next) => onChange({ ...item, ite: { ...item.ite, contribution: next } })}
+          />
         </div>
       )}
 
-      {/* Row 3: Income amount, frequency, net/gross (if applicable) */}
+      {/* Row 3: Income (if applicable) */}
       {hasIncome && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Field label={incomeLabel}>
-            <NumberInput
-              value={(income.periodic_amount ?? null) as any}
-              onValueChange={(v) => {
-                const cf = ensureIncome();
-                onChange({ ...item, ite: { ...item.ite, income: { ...cf, periodic_amount: (v == null ? null : Math.round(v)) } } });
-              }}
-              decimals={0}
-              placeholder="amount"
-            />
-          </Field>
-          <Field label="Frequency">
-            <select
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              value={income.frequency}
-              onChange={(e) => {
-                const cf = ensureIncome();
-                onChange({ ...item, ite: { ...item.ite, income: { ...cf, frequency: e.target.value as BalanceFrequency } } });
-              }}
-            >
-              {freqOptions.map((f) => (
-                <option key={f} value={f}>
-                  {f.replace(/_/g, ' ')}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Net/Gross">
-            <select
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              value={income.net_gross}
-              onChange={(e) => {
-                const cf = ensureIncome();
-                onChange({ ...item, ite: { ...item.ite, income: { ...cf, net_gross: e.target.value as NetGrossIndicator } } });
-              }}
-            >
-              {ngOptions.map((ng) => (
-                <option key={ng} value={ng}>
-                  {ng}
-                </option>
-              ))}
-            </select>
-          </Field>
+        <div className="md:col-span-3">
+          <CashFlowFieldset
+            label={incomeLabel}
+            value={income}
+            onChange={(next) => onChange({ ...item, ite: { ...item.ite, income: next } })}
+          />
         </div>
       )}
     </div>

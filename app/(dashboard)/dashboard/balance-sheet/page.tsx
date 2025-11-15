@@ -10,6 +10,7 @@ import { loadBalanceSheet, saveBalanceSheet } from '@/lib/api/balance';
 import { loadIdentity, saveIdentity } from '@/lib/api/identity';
 import type { CashFlow, BalanceEmploymentStatus, BalanceFrequency, ItemsOnlyBalance } from '@/lib/types/balance';
 import { preferNonBlank, isBlank } from '@/lib/utils';
+import { normalizeLoadedItems } from '@/lib/balance/normalize';
 
 type CashflowItem = {
   description?: string | null;
@@ -99,17 +100,7 @@ export default function BalanceSheetPage() {
         ]);
         if (!ignore) {
           // Normalize incoming items to align with Pydantic (description required; currency string or omitted)
-          const normalizeItems = (arr: any[]): PersonalBalanceSheetItem[] => {
-            const toTitle = (s: string) => s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-            return (Array.isArray(arr) ? arr : []).map((it: any) => {
-              const desc = typeof it?.description === 'string' && it.description.trim().length > 0
-                ? it.description
-                : toTitle(String(it?.type ?? 'item'));
-              const out: any = { ...it, description: desc };
-              if (!out.currency) delete out.currency;
-              return out as PersonalBalanceSheetItem;
-            });
-          };
+          const normalizeItems = (arr: any[]): PersonalBalanceSheetItem[] => normalizeLoadedItems(arr);
           // Dev contract checks (UI surface)
           if (process.env.NODE_ENV !== 'production') {
             const issues: string[] = [];

@@ -7,26 +7,15 @@ import {
   NetGrossIndicator,
 } from '../types/balance';
 
-export const balanceEmploymentOptions: BalanceEmploymentStatus[] = [
-  'employed',
-  'self_employed',
-  'retired',
-  'full_time_education',
-  'independent_means',
-  'homemaker',
-  'other',
-];
-
-export const balanceFrequencyOptions: BalanceFrequency[] = [
-  'weekly',
-  'monthly',
-  'quarterly',
-  'six_monthly',
-  'annually',
-  'unknown',
-];
-
-export const netGrossOptions: NetGrossIndicator[] = ['net', 'gross', 'unknown'];
+// Re-export canonical constants and helpers from types to ensure single source of truth
+export {
+  BALANCE_EMPLOYMENT_STATUSES as balanceEmploymentOptions,
+  BALANCE_FREQUENCIES as balanceFrequencyOptions,
+  NET_GROSS_VALUES as netGrossOptions,
+  formatEmploymentStatus,
+  formatFrequency,
+  formatNetGross,
+} from '../types/balance';
 
 export const balanceSheetItemKinds: BalanceSheetItemKind[] = [
   'salary_income',
@@ -185,100 +174,100 @@ export const balanceSheetFieldLabels: Record<
   salary_income: { income: 'Income' },
   side_hustle_income: { income: 'Profit' },
   self_employment_income: { income: 'Drawings' },
-  
+
   // BUY TO LET
-  buy_to_let: { 
+  buy_to_let: {
     income: 'Rental income',
     propertyValue: 'Property value',
     loan: 'Mortgage',
     balance: 'Mortgage balance',
     repayment: 'Mortgage repayment',
   },
-  
+
   // INVESTMENT ITEMS
-  current_account: { 
+  current_account: {
     income: 'Interest income',
     investmentValue: 'Balance',
   },
-  gia: { 
+  gia: {
     contribution: 'Contribution',
     income: 'Income',
     investmentValue: 'Investment value',
   },
-  isa: { 
+  isa: {
     contribution: 'Contribution',
     income: 'Income',
     investmentValue: 'Investment value',
   },
-  premium_bond: { 
+  premium_bond: {
     contribution: 'Contribution',
     income: 'Income',
     investmentValue: 'Investment value',
   },
-  savings_account: { 
+  savings_account: {
     contribution: 'Contribution',
     income: 'Interest income',
     investmentValue: 'Balance',
   },
-  uni_fees_savings_plan: { 
+  uni_fees_savings_plan: {
     contribution: 'Contribution',
     income: 'Income',
     investmentValue: 'Investment value',
   },
-  vct: { 
+  vct: {
     contribution: 'Contribution',
     income: 'Dividend income',
     investmentValue: 'Investment value',
   },
-  
+
   // LOAN ITEMS
-  credit_card: { 
+  credit_card: {
     balance: 'Balance',
     repayment: 'Repayment',
   },
-  personal_loan: { 
+  personal_loan: {
     balance: 'Balance',
     repayment: 'Repayment',
   },
-  student_loan: { 
+  student_loan: {
     balance: 'Balance',
     repayment: 'Repayment',
   },
-  
+
   // PROPERTY ITEMS
-  main_residence: { 
+  main_residence: {
     value: 'Property value',
     loan: 'Mortgage',
     balance: 'Mortgage balance',
     repayment: 'Mortgage repayment',
   },
-  holiday_home: { 
+  holiday_home: {
     value: 'Property value',
     loan: 'Mortgage',
     balance: 'Mortgage balance',
     repayment: 'Mortgage repayment',
   },
-  other_valuable_item: { 
+  other_valuable_item: {
     value: 'Item value',
     loan: 'Loan',
     balance: 'Loan balance',
     repayment: 'Loan repayment',
   },
-  
+
   // PENSION ITEMS
-  workplace_pension: { 
+  workplace_pension: {
     contribution: 'Personal contribution',
     income: 'Income',
     investmentValue: 'Pension value',
     employerContribution: 'Employer contribution',
   },
-  defined_benefit_pension: { 
+  defined_benefit_pension: {
     contribution: 'Personal contribution',
     income: 'Income',
     investmentValue: 'Pension value',
     employerContribution: 'Employer contribution',
   },
-  personal_pension: { 
+  personal_pension: {
     contribution: 'Personal contribution',
     income: 'Income',
     investmentValue: 'Pension value',

@@ -1,18 +1,3 @@
-import { NextRequest, NextResponse } from 'next/server';
-
-export const runtime = 'nodejs';
-
-// Legacy summary API is decommissioned. Use /api/balance instead.
-export async function GET(_req: NextRequest) {
-  return NextResponse.json(
-    { error: 'This endpoint is deprecated. Use /api/balance.' },
-    { status: 410 }
-  );
-}
-
-export async function PUT(_req: NextRequest) {
-  return NextResponse.json(
-    { error: 'This endpoint is deprecated. Use /api/balance.' },
-    { status: 410 }
-  );
-}
+// This route has been removed. Intentionally left blank to ensure no handlers are exported.
+// Keeping the file temporarily due to tooling limitations that prevent file deletion in this session.
+// The route will effectively return 404.

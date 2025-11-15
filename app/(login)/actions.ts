@@ -489,3 +489,74 @@ export const inviteTeamMember = validatedActionWithUser(
     return { success: 'Invitation sent successfully' };
   }
 );
+
+const updateBotConfigSchema = z.object({
+  botName: z.string().max(255).optional(),
+  mailboxName: z
+    .string()
+    .max(255)
+    .optional()
+    .refine(
+      (val) => {
+        if (!val || val.trim() === '') return true;
+        // Only allow lowercase letters, numbers, hyphens, and dots (standard email local part)
+        // Must not start or end with hyphen or dot
+        return /^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/.test(val.trim());
+      },
+      {
+        message: 'Mailbox name must contain only lowercase letters, numbers, hyphens, and dots. Cannot start or end with hyphen or dot.'
+      }
+    )
+});
+
+export const updateBotConfig = validatedActionWithUser(
+  updateBotConfigSchema,
+  async (data, _, user) => {
+    const { botName, mailboxName } = data;
+    const userWithTeam = await getUserWithTeam(user.id);
+
+    if (!userWithTeam?.teamId) {
+      return { error: 'User is not part of a team' };
+    }
+
+    // If mailboxName is provided and not empty, check uniqueness
+    if (mailboxName && mailboxName.trim() !== '') {
+      const normalizedMailbox = mailboxName.trim().toLowerCase();
+      const existing = await db
+        .select()
+        .from(teams)
+        .where(
+          and(
+            eq(teams.mailboxName, normalizedMailbox),
+            sql`${teams.id} != ${userWithTeam.teamId}`
+          )
+        )
+        .limit(1);
+
+      if (existing.length > 0) {
+        return { 
+          botName,
+          mailboxName,
+          error: 'This mailbox name is already in use. Please choose a different one.' 
+        };
+      }
+    }
+
+    await Promise.all([
+      db
+        .update(teams)
+        .set({ 
+          botName: botName?.trim() || null,
+          mailboxName: mailboxName?.trim().toLowerCase() || null 
+        })
+        .where(eq(teams.id, userWithTeam.teamId)),
+      logActivity(userWithTeam.teamId, user.id, ActivityType.UPDATE_ACCOUNT)
+    ]);
+
+    return { 
+      botName,
+      mailboxName,
+      success: 'Bot configuration updated successfully.' 
+    };
+  }
+);

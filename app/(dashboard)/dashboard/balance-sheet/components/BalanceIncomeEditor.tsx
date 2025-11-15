@@ -4,6 +4,7 @@ import Field from '@/components/ui/form/Field';
 import FormGrid from '@/components/ui/form/FormGrid';
 import { Input } from '@/components/ui/input';
 import { NumberInput } from '@/components/ui/number-input';
+import { CashFlowFieldset } from '@/components/ui/form/CashFlowFieldset';
 import type { PersonalBalanceSheetItem, BalanceFrequency, NetGrossIndicator } from '@/lib/types/balance';
 
 const freqOptions: BalanceFrequency[] = [
@@ -58,53 +59,16 @@ export default function BalanceIncomeEditor({
             placeholder="GBP"
           />
         </Field>
-        <Field label={amountLabel}>
-            <NumberInput
-              value={(cash.periodic_amount ?? null) as any}
-              placeholder="amount"
-              onValueChange={(v) => {
-                const val = v == null ? null : Math.round(v);
-                if (isExpense) onChange({ ...item, ite: { ...item.ite, expenditure: { ...cash, periodic_amount: val } } } as any);
-                else onChange({ ...item, ite: { ...item.ite, income: { ...cash, periodic_amount: val } } } as any);
-              }}
-            />
-          </Field>
-        <Field label="Frequency">
-            <select
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              value={cash.frequency}
-              onChange={(e) =>
-                onChange({
-                  ...item,
-                  ite: isExpense ? { ...item.ite, expenditure: { ...cash, frequency: e.target.value as BalanceFrequency } } : { ...item.ite, income: { ...cash, frequency: e.target.value as BalanceFrequency } },
-                } as any)
-              }
-            >
-              {freqOptions.map((f) => (
-                <option key={f} value={f}>
-                  {f.replace(/_/g, ' ')}
-                </option>
-              ))}
-            </select>
-        </Field>
-        <Field label="Net/Gross">
-            <select
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              value={cash.net_gross}
-              onChange={(e) =>
-                onChange({
-                  ...item,
-                  ite: isExpense ? { ...item.ite, expenditure: { ...cash, net_gross: e.target.value as NetGrossIndicator } } : { ...item.ite, income: { ...cash, net_gross: e.target.value as NetGrossIndicator } },
-                } as any)
-              }
-            >
-              {ngOptions.map((ng) => (
-                <option key={ng} value={ng}>
-                  {ng}
-                </option>
-              ))}
-            </select>
-        </Field>
+        <div className="md:col-span-3">
+          <CashFlowFieldset
+            label={amountLabel}
+            value={cash}
+            onChange={(next) => {
+              if (isExpense) onChange({ ...item, ite: { ...item.ite, expenditure: next } } as any);
+              else onChange({ ...item, ite: { ...item.ite, income: next } } as any);
+            }}
+          />
+        </div>
       </div>
     </div>
   );

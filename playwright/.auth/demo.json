@@ -1,0 +1,25 @@
+{
+  "cookies": [
+    {
+      "name": "session",
+      "value": "eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyIjp7ImlkIjo1fSwiZXhwaXJlcyI6IjIwMjUtMTEtMTJUMTE6MDg6NDguNjY5WiIsImlhdCI6MTc2Mjg1OTMyOCwiZXhwIjoxNzYyOTQ1NzI4fQ.mKTGS1F6mHjOBzdKLPXjR8KiUiA0_ffTJDKqhLb0Zys",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1762945728.756205,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": [
+    {
+      "origin": "http://localhost:3000",
+      "localStorage": [
+        {
+          "name": "shoppingList:4:anon",
+          "value": "[]"
+        }
+      ]
+    }
+  ]
+}

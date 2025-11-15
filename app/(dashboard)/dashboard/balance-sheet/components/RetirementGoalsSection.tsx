@@ -1,7 +1,7 @@
 "use client";
 import React from 'react';
 import { Input } from '@/components/ui/input';
-import { NumberInput } from '@/components/ui/number-input';
+import CashFlowFieldset from '@/components/ui/form/CashFlowFieldset';
 import Field from '@/components/ui/form/Field';
 import FormGrid from '@/components/ui/form/FormGrid';
 import SuggestionInline from '@/components/ui/suggestion-inline';
@@ -98,17 +98,29 @@ export default function RetirementGoalsSection<T extends FormData>({
 
       <div className="mt-4">
         <h3 className="text-base font-medium mb-3">Target retirement income (today's money)</h3>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Field label="AMOUNT">
-            <NumberInput
-              value={(retirementIncome.amount ?? null) as any}
-              placeholder="amount"
-              onValueChange={(v) =>
-                updateRetirementIncome({
-                  amount: v == null ? null : Math.round(v),
-                })
-              }
-            />
+        <CashFlowFieldset
+          label="Amount per period"
+          value={(() => {
+            // Adapt the local legacy CashflowItem to CashFlow-like shape for the fieldset
+            const amount = retirementIncome.amount ?? null;
+            const periodic_amount = amount === null ? null : Math.round(amount as number);
+            const frequency = ((): any => {
+              const f = retirementIncome.frequency;
+              return f === 'weekly' || f === 'monthly' || f === 'quarterly' || f === 'annually' ? f : 'unknown';
+            })();
+            const net_gross = retirementIncome.is_gross === true ? 'gross' : retirementIncome.is_gross === false ? 'net' : 'unknown';
+            return { periodic_amount, frequency, net_gross };
+          })() as any}
+          onChange={(next) => {
+            updateRetirementIncome({
+              amount: next.periodic_amount,
+              frequency: ((): any => (next.frequency === 'weekly' || next.frequency === 'monthly' || next.frequency === 'quarterly' || next.frequency === 'annually' ? next.frequency : null))(),
+              is_gross: next.net_gross === 'gross' ? true : next.net_gross === 'net' ? false : null,
+            });
+          }}
+        />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
+          <div>
             {typeof suggestions?.target_retirement_income?.amount !== 'undefined' ? (
               <SuggestionInline
                 value={String(suggestions?.target_retirement_income?.amount ?? '')}
@@ -119,40 +131,8 @@ export default function RetirementGoalsSection<T extends FormData>({
                 onReject={() => onReject?.('target_retirement_income', 'amount')}
               />
             ) : null}
-          </Field>
-          <Field label="Currency">
-            <Input
-              value={retirementIncome.currency ?? ''}
-              onChange={(e) => updateRetirementIncome({ currency: e.target.value })}
-              placeholder="GBP"
-            />
-            {typeof suggestions?.target_retirement_income?.currency !== 'undefined' ? (
-              <SuggestionInline
-                value={String(suggestions?.target_retirement_income?.currency ?? '')}
-                onAccept={() => {
-                  updateRetirementIncome({ currency: suggestions?.target_retirement_income?.currency ?? null as any });
-                  onAccept?.('target_retirement_income', 'currency');
-                }}
-                onReject={() => onReject?.('target_retirement_income', 'currency')}
-              />
-            ) : null}
-          </Field>
-          <Field label="Frequency">
-            <select
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              value={retirementIncome.frequency ?? ''}
-              onChange={(e) =>
-                updateRetirementIncome({
-                  frequency: e.target.value === '' ? null : (e.target.value as any),
-                })
-              }
-            >
-              <option value="">Select...</option>
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
-              <option value="quarterly">Quarterly</option>
-              <option value="annually">Annually</option>
-            </select>
+          </div>
+          <div>
             {typeof suggestions?.target_retirement_income?.frequency !== 'undefined' ? (
               <SuggestionInline
                 value={String(suggestions?.target_retirement_income?.frequency ?? '')}
@@ -163,27 +143,8 @@ export default function RetirementGoalsSection<T extends FormData>({
                 onReject={() => onReject?.('target_retirement_income', 'frequency')}
               />
             ) : null}
-          </Field>
-          <Field label="Net/Gross">
-            <select
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              value={
-                retirementIncome.is_gross === null || retirementIncome.is_gross === undefined
-                  ? ''
-                  : retirementIncome.is_gross
-                  ? 'gross'
-                  : 'net'
-              }
-              onChange={(e) =>
-                updateRetirementIncome({
-                  is_gross: e.target.value === '' ? null : e.target.value === 'gross',
-                })
-              }
-            >
-              <option value="">Select...</option>
-              <option value="gross">Gross</option>
-              <option value="net">Net</option>
-            </select>
+          </div>
+          <div>
             {typeof suggestions?.target_retirement_income?.is_gross !== 'undefined' ? (
               <SuggestionInline
                 value={
@@ -200,7 +161,7 @@ export default function RetirementGoalsSection<T extends FormData>({
                 onReject={() => onReject?.('target_retirement_income', 'is_gross')}
               />
             ) : null}
-          </Field>
+          </div>
         </div>
       </div>
     </section>

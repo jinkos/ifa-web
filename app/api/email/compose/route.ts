@@ -1,4 +1,4 @@
-// Proxies POST /shopping/get_email to the FastAPI backend and returns JSON
+// Proxies POST /api/email/compose to the FastAPI backend and returns JSON
 import { NextResponse } from 'next/server';
 
 const FASTAPI_URL = process.env.FASTAPI_URL!;
@@ -6,7 +6,7 @@ const FASTAPI_URL = process.env.FASTAPI_URL!;
 export async function POST(req: Request) {
   const body = await req.json();
   const composeMode = req.headers.get('x-compose-mode') || undefined;
-  const r = await fetch(`${FASTAPI_URL}/shopping/get_email`, {
+  const r = await fetch(`${FASTAPI_URL}/email/compose`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

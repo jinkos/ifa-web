@@ -61,6 +61,7 @@ export default function DevPage() {
                 type="button"
                 className={`px-3 py-1 rounded border ${clientDeleteLoading ? 'border-indigo-300 text-indigo-300 cursor-not-allowed' : 'border-indigo-400 text-indigo-800 bg-indigo-100 hover:bg-indigo-200'}`}
                 disabled={clientDeleteLoading}
+                data-testid="gary-path-button"
                 onClick={async () => {
                   setClientDeleteLoading(true);
                   setClientDeleteErr(null);
@@ -82,8 +83,8 @@ export default function DevPage() {
             </div>
           </div>
           <div className="mt-2">
-            {clientDeleteMsg && <span className="text-emerald-700 text-sm">{clientDeleteMsg}</span>}
-            {clientDeleteErr && <span className="text-red-600 text-sm">{clientDeleteErr}</span>}
+            {clientDeleteMsg && <span data-testid="gary-path-status" className="text-emerald-700 text-sm">{clientDeleteMsg}</span>}
+            {clientDeleteErr && <span data-testid="gary-path-error" className="text-red-600 text-sm">{clientDeleteErr}</span>}
           </div>
         </div>
 

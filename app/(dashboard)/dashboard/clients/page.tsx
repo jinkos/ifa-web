@@ -24,11 +24,11 @@ export default async function ClientsPage() {
   }
   const clients = (data ?? []) as Client[];
   return (
-    <section className="p-4 lg:p-8">
+    <section className="p-4 lg:p-8" data-testid="clients-page">
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-semibold">Clients</h1>
         <Link href="/dashboard/clients/client_details/new">
-          <Button className="bg-orange-500 hover:bg-orange-600 text-white font-medium">Add Client</Button>
+          <Button className="bg-orange-500 hover:bg-orange-600 text-white font-medium" data-testid="add-client-button">Add Client</Button>
         </Link>
       </div>
       <ClientsTable clients={clients} />
