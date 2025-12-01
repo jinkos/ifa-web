@@ -30,7 +30,7 @@ export default function IntellifloPage() {
   const [logoutLoading, setLogoutLoading] = useState(false);
   const [backendLoggedIn, setBackendLoggedIn] = useState<boolean | null>(null);
 
-  const fastApiBaseUrl = (process.env.NEXT_PUBLIC_FASTAPI_URL || '').replace(/\/$/, '');
+  // All calls go through Next.js API proxy
 
   const decodeJwtPayload = (token: string) => {
     try {
@@ -90,7 +90,7 @@ export default function IntellifloPage() {
       }
       const userData = await userResponse.json();
 
-      const url = `${fastApiBaseUrl}/intelliflo/find_client?full_name=${encodeURIComponent(name)}&user_id=${userData.id}`;
+      const url = `/api/intelliflo/find_client?full_name=${encodeURIComponent(name)}&user_id=${userData.id}`;
       const resp = await fetch(url, {
         headers: {
           Accept: 'application/json'
@@ -171,7 +171,7 @@ export default function IntellifloPage() {
       }
       const userData = await userResponse.json();
 
-      const url = `${fastApiBaseUrl}/intelliflo/pull?client_id=${encodeURIComponent(clientId)}&user_id=${userData.id}`;
+      const url = `/api/intelliflo/pull?client_id=${encodeURIComponent(clientId)}&user_id=${userData.id}`;
       const resp = await fetch(url, {
         headers: {
           Accept: 'application/json'
@@ -297,7 +297,7 @@ export default function IntellifloPage() {
         }
       };
 
-      const url = `${fastApiBaseUrl}/intelliflo/create?user_id=${userData.id}`;
+      const url = `/api/intelliflo/create?user_id=${userData.id}`;
       const resp = await fetch(url, {
         method: 'POST',
         headers: {
@@ -358,7 +358,7 @@ export default function IntellifloPage() {
       }
       const userData = await userResponse.json();
 
-      const url = `${fastApiBaseUrl}/intelliflo/delete?client_id=${encodeURIComponent(selectedClient.back_end_id)}&user_id=${userData.id}`;
+      const url = `/api/intelliflo/delete?client_id=${encodeURIComponent(selectedClient.back_end_id)}&user_id=${userData.id}`;
       const resp = await fetch(url, {
         method: 'POST',
         headers: {
@@ -441,7 +441,7 @@ export default function IntellifloPage() {
         }
       };
 
-      const url = `${fastApiBaseUrl}/intelliflo/push?user_id=${userData.id}`;
+      const url = `/api/intelliflo/push?user_id=${userData.id}`;
       const resp = await fetch(url, {
         method: 'POST',
         headers: {
@@ -474,7 +474,7 @@ export default function IntellifloPage() {
       }
       const userData = await userResponse.json();
 
-      const resp = await fetch(`${fastApiBaseUrl}/auth/intelliflo/status?user_id=${userData.id}`);
+      const resp = await fetch(`/api/intelliflo/status?user_id=${userData.id}`);
       if (resp.ok) {
         const data = await resp.json();
         setBackendLoggedIn(data.logged_in || false);
@@ -498,7 +498,7 @@ export default function IntellifloPage() {
       }
       const userData = await userResponse.json();
 
-      const resp = await fetch(`${fastApiBaseUrl}/auth/intelliflo/logout?user_id=${userData.id}`, {
+      const resp = await fetch(`/api/intelliflo/logout?user_id=${userData.id}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

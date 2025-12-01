@@ -1,9 +1,19 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 
+export const dynamic = 'force-dynamic';
+
 export default function IntellifloCallbackPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Processing...</div>}>
+      <InnerCallback />
+    </Suspense>
+  );
+}
+
+function InnerCallback() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [status, setStatus] = useState('Processing...');
@@ -29,11 +39,7 @@ export default function IntellifloCallbackPage() {
         }
         const userData = await userResponse.json();
 
-        const fastApiBaseUrl = (process.env.NEXT_PUBLIC_FASTAPI_URL || '').replace(/\/$/, '');
-        if (!fastApiBaseUrl) {
-          throw new Error('NEXT_PUBLIC_FASTAPI_URL is not set for client-side exchange');
-        }
-        const response = await fetch(`${fastApiBaseUrl}/auth/intelliflo/exchange`, {
+        const response = await fetch(`/api/intelliflo/exchange`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
