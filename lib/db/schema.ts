@@ -5,12 +5,16 @@ export const clients = pgTable('clients', {
   email: varchar('email', { length: 255 }),
   address1: varchar('address1', { length: 255 }),
   address2: varchar('address2', { length: 255 }),
+  city: varchar('city', { length: 255 }),
   postcode: varchar('postcode', { length: 32 }),
   mobile: varchar('mobile', { length: 32 }),
   landline: varchar('landline', { length: 32 }),
   created_by: varchar('created_by', { length: 255 }),
   created_at: timestamp('created_at').notNull().defaultNow(),
   updated_at: timestamp('updated_at').notNull().defaultNow(),
+  // External backend linkage (e.g., Intelliflo)
+  back_end: varchar('back_end', { length: 100 }),
+  back_end_id: varchar('back_end_id', { length: 255 }),
 });
 
 export type Client = typeof clients.$inferSelect;

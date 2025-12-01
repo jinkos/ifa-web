@@ -4,20 +4,26 @@ import Field from '@/components/ui/form/Field';
 import { Input } from '@/components/ui/input';
 import { NumberInput } from '@/components/ui/number-input';
 import { CashFlowFieldset } from '@/components/ui/form/CashFlowFieldset';
-import type { PersonalBalanceSheetItem, CashFlow, NonStatePensionData, StatePensionData } from '@/lib/types/balance';
+import type { PersonalBalanceSheetItem, CashFlow, NonStatePensionData, StatePensionData, AnnuityPensionData } from '@/lib/types/balance';
 
-type PensionKinds = 'workplace_pension' | 'defined_benefit_pension' | 'personal_pension' | 'state_pension';
+type PensionKinds =
+  | 'workplace_pension'
+  | 'defined_benefit_pension'
+  | 'personal_pension'
+  | 'state_pension'
+  | 'sipp'
+  | 'annuity_pension';
 
 export default function BalancePensionEditor({
   item,
   onChange,
   descriptionError,
 }: {
-  item: Extract<PersonalBalanceSheetItem, { type: PensionKinds }> & { ite: NonStatePensionData | StatePensionData };
+  item: Extract<PersonalBalanceSheetItem, { type: PensionKinds }> & { ite: NonStatePensionData | StatePensionData | AnnuityPensionData };
   onChange: (next: PersonalBalanceSheetItem) => void;
   descriptionError?: string;
 }) {
-  const isState = item.type === 'state_pension';
+  const isCashflowOnly = item.type === 'state_pension' || item.type === 'annuity_pension';
   const ensureContribution = (): CashFlow =>
     (item as any).ite.contribution ?? { periodic_amount: null, frequency: 'monthly', net_gross: 'gross' };
   const ensureIncome = (): CashFlow =>
@@ -27,10 +33,10 @@ export default function BalancePensionEditor({
   const ensurePension = (): CashFlow =>
     (item as any).ite.pension ?? { periodic_amount: null, frequency: 'monthly', net_gross: 'net' };
 
-  const contrib = isState ? undefined : ((item as any).ite.contribution ?? ensureContribution());
-  const employer = isState ? undefined : ((item as any).ite.employer_contribution ?? ensureEmployerContribution());
-  const income = isState ? undefined : ((item as any).ite.income ?? ensureIncome());
-  const pension = isState ? ((item as any).ite.pension ?? ensurePension()) : undefined;
+  const contrib = isCashflowOnly ? undefined : ((item as any).ite.contribution ?? ensureContribution());
+  const employer = isCashflowOnly ? undefined : ((item as any).ite.employer_contribution ?? ensureEmployerContribution());
+  const income = isCashflowOnly ? undefined : ((item as any).ite.income ?? ensureIncome());
+  const pension = isCashflowOnly ? ((item as any).ite.pension ?? ensurePension()) : undefined;
 
   // display values handled by CashFlowFieldset
 
@@ -52,7 +58,7 @@ export default function BalancePensionEditor({
             }}
           />
         </Field>
-        {!isState && (
+        {!isCashflowOnly && (
           <Field label="Pension value">
             <NumberInput
               value={(((item as any).ite.investment_value ?? null) as any)}
@@ -74,7 +80,7 @@ export default function BalancePensionEditor({
       </div>
 
       {/* Row 2: Personal Contribution (gross), frequency, net/gross (non-state only) */}
-      {!isState && (
+      {!isCashflowOnly && (
         <div className="md:col-span-3">
           <CashFlowFieldset
             label="Personal Contribution"
@@ -85,7 +91,7 @@ export default function BalancePensionEditor({
       )}
 
       {/* Row 3: Employer Contribution (gross), frequency, net/gross (non-state only) */}
-      {!isState && (
+      {!isCashflowOnly && (
         <div className="md:col-span-3">
           <CashFlowFieldset
             label="Employer Contribution"
@@ -98,10 +104,10 @@ export default function BalancePensionEditor({
       {/* Row 4: Drawings (non-state) OR State pension cash flow */}
       <div className="md:col-span-3">
         <CashFlowFieldset
-          label={isState ? 'State pension' : 'Drawings'}
-          value={isState ? pension! : income!}
+          label={item.type === 'state_pension' ? 'State pension' : item.type === 'annuity_pension' ? 'Annuity income' : 'Drawings'}
+          value={isCashflowOnly ? pension! : income!}
           onChange={(next) => {
-            if (isState) onChange({ ...(item as any), ite: { ...(item as any).ite, pension: next } });
+            if (isCashflowOnly) onChange({ ...(item as any), ite: { ...(item as any).ite, pension: next } });
             else onChange({ ...(item as any), ite: { ...(item as any).ite, income: next } });
           }}
         />

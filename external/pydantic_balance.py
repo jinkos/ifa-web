@@ -82,6 +82,12 @@ class NonStatePension(Investment):
 class StatePension(BaseModel):
     pension: CashFlow = Field(description='Expected state pension cash flow')
 
+class AnnuityPension(BaseModel):
+    pension: CashFlow = Field(description='Current pension cash flow')
+
+class Collectable(BaseModel):
+    value: Optional[int] = Field(description='Current market value of the collectable item')
+
 
 # GLOBALS
 class BSItem(BaseModel):
@@ -89,7 +95,7 @@ class BSItem(BaseModel):
     type: ItemType = Field(description='Discriminator for the item kind')
     description: str = Field(description='User-provided description of the item or a grammatical version of the ItemType')
     currency: str = Field(default='GBP', description='ISO 4217 currency code')
-    ite: Income | Expenses | BuyToLet| Investment | Loan | Property | NonStatePension | StatePension
+    ite: Income | Expenses | BuyToLet| Investment | Loan | Property | NonStatePension | StatePension | AnnuityPension | Collectable
 
 class BalanceSheetModel(LLMModel):
     balance_sheet: List[BSItem] = Field(default_factory=list, description='List of personal assets, liabilities, incomes and expenses')

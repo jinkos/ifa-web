@@ -263,14 +263,20 @@ export class BalanceSheetItemProjector {
     if (
       [
         "current_account",
+        "deposit_account",
         "gia",
         "isa",
         "premium_bond",
         "savings_account",
         "uni_fees_savings_plan",
         "vct",
+        "eis",
+        "IHT_scheme",
+        "life_insurance",
+        "whole_of_life_policy",
         "workplace_pension",
         "personal_pension",
+        "sipp",
       ].includes(t)
     ) {
       const taxSheltered = t === "isa";
@@ -284,7 +290,7 @@ export class BalanceSheetItemProjector {
     }
 
     // Property (treat other_valuable_item like a property with sell/none mode)
-    if (["main_residence", "holiday_home", "buy_to_let", "other_valuable_item"].includes(t)) {
+    if (["main_residence", "holiday_home", "buy_to_let", "other_valuable_item", "collectable"].includes(t)) {
       const propertyVal = data.value ?? data.property_value;
       const loanBal = data.loan?.balance ?? 0;
       const loanRepayment = data.loan?.repayment;
@@ -299,7 +305,7 @@ export class BalanceSheetItemProjector {
     }
 
     // Income-only pensions
-    if (["state_pension", "defined_benefit_pension"].includes(t)) {
+    if (["state_pension", "defined_benefit_pension", "annuity_pension"].includes(t)) {
       return projectPensionIncomeOnly(data.pension, this.assumptions, years);
     }
 
@@ -332,21 +338,27 @@ export class BalanceSheetItemProjector {
     if (
       [
         "current_account",
+        "deposit_account",
         "gia",
         "isa",
         "premium_bond",
         "savings_account",
         "uni_fees_savings_plan",
         "vct",
+        "eis",
+        "IHT_scheme",
+        "life_insurance",
+        "whole_of_life_policy",
         "workplace_pension",
         "personal_pension",
+        "sipp",
       ].includes(t)
     ) {
       return data.investment_value ?? 0;
     }
 
     // Properties
-    if (["main_residence", "holiday_home", "buy_to_let", "other_valuable_item"].includes(t)) {
+    if (["main_residence", "holiday_home", "buy_to_let", "other_valuable_item", "collectable"].includes(t)) {
       const propertyVal = data.value ?? data.property_value ?? 0;
       const loanBal = data.loan?.balance ?? 0;
       return (propertyVal - loanBal);

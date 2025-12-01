@@ -6,29 +6,29 @@ import { loadIdentity } from '@/lib/api/identity';
 import { loadBalanceSheet } from '@/lib/api/balance';
 import type { IdentityState } from '@/lib/types/identity';
 import type { ItemsOnlyBalance, PersonalBalanceSheetItem, BalanceSheetItemKind } from '@/lib/types/balance';
+import { isIhtAsset, getIhtItemValue } from '@/lib/planning/iht';
+import LooseNumberInput, { parseLooseNumber as parseLooseNumberControl } from '@/components/ui/loose-number-input';
 import { annualiseTarget, computeYearsToRetirement } from '@/app/(dashboard)/dashboard/planning/selectors';
 import { createProjections, computeTotals } from '@/lib/planning/engine';
 import type { ForwardValueAssumptions } from '@/lib/planning/calculator';
 import ProjectionList from './components/ProjectionList';
 import SettingsBar from './components/SettingsBar';
 import TotalsCard from './components/TotalsCard';
+import PensionSummary from './components/PensionSummary';
+import PensionProjections from './components/PensionProjections';
+import IhtPlanning from './components/IhtPlanning';
+import IhtSummary from './components/IhtSummary';
+import CashflowAnalysis from './components/CashflowAnalysis';
+import CashflowSummary from './components/CashflowSummary';
 import { loadPlanningSettings, savePlanningSettings, type PlanningSettings } from '@/lib/api/planning';
+import { getItemBg, getItemKey } from './shared';
 
-function calcAgeYears(dobISO: string, today = new Date()): number | null {
-  const dob = new Date(dobISO);
-  if (isNaN(dob.getTime())) return null;
-  let age = today.getFullYear() - dob.getFullYear();
-  const m = today.getMonth() - dob.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
-    age--;
-  }
-  return age < 0 ? null : age;
-}
+// Removed unused calcAgeYears helper (computeYearsToRetirement is used instead)
 
 export default function PlanningPage() {
   const { selectedClient } = useSelectedClient();
   const { team } = useTeam();
-  const [activeTab, setActiveTab] = useState<'pension' | 'cashflow'>('pension');
+  const [activeTab, setActiveTab] = useState<'pension' | 'iht' | 'cashflow'>('pension');
   const [dob, setDob] = useState<string | null>(null);
   const [targetAge, setTargetAge] = useState<number | null>(null);
   const [identityTargetCF, setIdentityTargetCF] = useState<any | null>(null);
@@ -39,6 +39,17 @@ export default function PlanningPage() {
   const [itemAssumptions, setItemAssumptions] = useState<Record<string, Partial<ForwardValueAssumptions>>>({});
   const [incomeHighlight, setIncomeHighlight] = useState<Record<string, boolean>>({});
   const [propertyMode, setPropertyMode] = useState<Record<string, 'rent' | 'sell' | 'none'>>({});
+  const [ihtIgnore, setIhtIgnore] = useState<Record<string, boolean>>({});
+  const [ihtTrust, setIhtTrust] = useState<Record<string, boolean>>({});
+  // For editable numeric fields that should allow intermediate text (e.g., '-') we store as strings
+  const [netChangeOnDeath, setNetChangeOnDeath] = useState<string>('0');
+  const [giftsPrevSevenYears, setGiftsPrevSevenYears] = useState<number>(0);
+  const [lifetimeAllowances, setLifetimeAllowances] = useState<number>(0);
+  const [giftsToCharityOnDeath, setGiftsToCharityOnDeath] = useState<number>(0);
+  const [exemptGiftsAnnual, setExemptGiftsAnnual] = useState<number>(0);
+  const [residenceNrbApplying, setResidenceNrbApplying] = useState<number>(0);
+
+  const parseLooseNumber = parseLooseNumberControl;
   // Gate saving effects until after first load to avoid clobbering stored values with defaults
   const [lsHydrated, setLsHydrated] = useState(false);
 
@@ -98,122 +109,8 @@ export default function PlanningPage() {
     };
   }, [team?.id, selectedClient?.client_id]);
 
-  // Local persistence helpers (per team/client)
-  const storageKey = (name: string, override?: { teamId?: string | number | null; clientId?: string | number | null }) => {
-    const teamId = (override?.teamId ?? team?.id) ?? 'no-team';
-    const clientId = (override?.clientId ?? selectedClient?.client_id) ?? 'no-client';
-    return `planning:${teamId}:${clientId}:${name}`;
-  };
-  const safeParse = <T,>(raw: string | null): T | undefined => {
-    if (!raw) return undefined;
-    try {
-      return JSON.parse(raw) as T;
-    } catch {
-      return undefined;
-    }
-  };
-
-  // Load persisted UI state when team/client is available
-  useEffect(() => {
-    // Attempt to load for resolved team/client, with a fallback to anonymous key for continuity
-    const loadFrom = (teamId?: string | number | null, clientId?: string | number | null) => {
-      const infRaw = localStorage.getItem(storageKey('inflationPct', { teamId, clientId }));
-      if (infRaw != null) {
-        const inf = Number(infRaw);
-        if (Number.isFinite(inf) && inf >= 0) setInflationPct(inf);
-      }
-      const wrRaw = localStorage.getItem(storageKey('withdrawalPct', { teamId, clientId }));
-      if (wrRaw != null) {
-        const wr = Number(wrRaw);
-        if (Number.isFinite(wr) && wr >= 0) setIncomeEquivalentPct(wr);
-      }
-      const ia = safeParse<Record<string, Partial<ForwardValueAssumptions>>>(localStorage.getItem(storageKey('itemAssumptions', { teamId, clientId })));
-      if (ia && typeof ia === 'object') setItemAssumptions(ia);
-      const pm = safeParse<Record<string, 'rent' | 'sell' | 'none'>>(localStorage.getItem(storageKey('propertyMode', { teamId, clientId })));
-      if (pm && typeof pm === 'object') setPropertyMode(pm);
-      const ih = safeParse<Record<string, boolean>>(localStorage.getItem(storageKey('incomeHighlight', { teamId, clientId })));
-      if (ih && typeof ih === 'object') setIncomeHighlight(ih);
-    };
-
-    try {
-      if (team?.id && selectedClient?.client_id) {
-        // Primary load for real IDs
-        loadFrom(team.id, selectedClient.client_id);
-        // If nothing exists, try fallback and migrate
-        const hadPrimary = localStorage.getItem(storageKey('inflationPct')) != null
-          || localStorage.getItem(storageKey('withdrawalPct')) != null
-          || localStorage.getItem(storageKey('itemAssumptions')) != null
-          || localStorage.getItem(storageKey('propertyMode')) != null
-          || localStorage.getItem(storageKey('incomeHighlight')) != null;
-        if (!hadPrimary) {
-          // Load from fallback
-          loadFrom('no-team', 'no-client');
-          // Migrate to primary keys if fallback existed
-          const migrate = (name: string) => {
-            const raw = localStorage.getItem(storageKey(name, { teamId: 'no-team', clientId: 'no-client' }));
-            if (raw != null) localStorage.setItem(storageKey(name), raw);
-          };
-          ['inflationPct', 'withdrawalPct', 'itemAssumptions', 'propertyMode', 'incomeHighlight'].forEach(migrate);
-        }
-      } else {
-        // Early load before IDs resolve (fallback)
-        loadFrom('no-team', 'no-client');
-      }
-      setLsHydrated(true);
-    } catch {
-      // ignore storage errors
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [team?.id, selectedClient?.client_id]);
-
-  // Persist on changes (globals)
-  useEffect(() => {
-    if (!lsHydrated) return;
-    try { localStorage.setItem(storageKey('inflationPct'), String(inflationPct ?? 0)); } catch {}
-  }, [lsHydrated, inflationPct, team?.id, selectedClient?.client_id]);
-  useEffect(() => {
-    if (!lsHydrated) return;
-    try { localStorage.setItem(storageKey('withdrawalPct'), String(incomeEquivalentPct ?? 0)); } catch {}
-  }, [lsHydrated, incomeEquivalentPct, team?.id, selectedClient?.client_id]);
-
-  // Persist on changes (maps)
-  useEffect(() => {
-    if (!lsHydrated) return;
-    try { localStorage.setItem(storageKey('itemAssumptions'), JSON.stringify(itemAssumptions ?? {})); } catch {}
-  }, [lsHydrated, itemAssumptions, team?.id, selectedClient?.client_id]);
-  useEffect(() => {
-    if (!lsHydrated) return;
-    try { localStorage.setItem(storageKey('propertyMode'), JSON.stringify(propertyMode ?? {})); } catch {}
-  }, [lsHydrated, propertyMode, team?.id, selectedClient?.client_id]);
-  useEffect(() => {
-    if (!lsHydrated) return;
-    try { localStorage.setItem(storageKey('incomeHighlight'), JSON.stringify(incomeHighlight ?? {})); } catch {}
-  }, [lsHydrated, incomeHighlight, team?.id, selectedClient?.client_id]);
-
-  // Persist to server (Supabase) when settings change and IDs are known
-  useEffect(() => {
-    if (!team?.id || !selectedClient?.client_id) return;
-    // Don't save until after local state is hydrated to avoid clobbering server with defaults
-    if (!lsHydrated) return;
-    const payload: PlanningSettings = {
-      version: 1,
-      inflationPct,
-      incomeEquivalentPct,
-      itemAssumptions,
-      incomeHighlight,
-      propertyMode,
-    };
-    // Fire-and-forget; errors can be surfaced later in a toast if desired
-    savePlanningSettings(team.id, selectedClient.client_id, payload).catch(() => {});
-  }, [lsHydrated, team?.id, selectedClient?.client_id, inflationPct, incomeEquivalentPct, itemAssumptions, incomeHighlight, propertyMode]);
-
-
-
+  // Derived values used across tabs
   const yearsToRetirement = useMemo(() => computeYearsToRetirement(dob, targetAge), [dob, targetAge]);
-
-  // Helper to annualise a cashflow-like object from PBS target_retirement_income
-  // annualiseTarget moved to selectors.ts for testing
-
   const targetIncomeAnnual = useMemo(() => {
     return Math.round(annualiseTarget(identityTargetCF) || 0);
   }, [identityTargetCF]);
@@ -225,24 +122,20 @@ export default function PlanningPage() {
     return m;
   }, [dob, targetAge]);
 
+  // Handlers for settings controls (used by PensionPlanning)
   const handleInflationChange = (v: number) => {
     setInflationPct(v);
-    try { localStorage.setItem(storageKey('inflationPct'), String(v)); } catch {}
   };
 
   const handleWithdrawalChange = (v: number) => {
     setIncomeEquivalentPct(v);
-    try { localStorage.setItem(storageKey('withdrawalPct'), String(v)); } catch {}
   };
 
   const handleReset = () => {
     const ok = typeof window !== 'undefined' ? window.confirm('Reset planning settings for this client?') : true;
     if (!ok) return;
     try {
-      ['inflationPct', 'withdrawalPct', 'itemAssumptions', 'propertyMode', 'incomeHighlight']
-        .forEach((k) => {
-          try { localStorage.removeItem(storageKey(k)); } catch {}
-        });
+      // Persisted settings are managed via planning settings API; local storage clearing not required
     } catch {}
     setInflationPct(2.5);
     setIncomeEquivalentPct(4);
@@ -253,40 +146,6 @@ export default function PlanningPage() {
 
   // Inclusion rules moved to lib/planning/catalog via engine
 
-  // Reuse the same background colors as Balance Sheet
-  const getItemBg = (t: BalanceSheetItemKind): string => {
-    switch (t) {
-      case 'salary_income':
-      case 'side_hustle_income':
-      case 'self_employment_income':
-        return 'bg-emerald-100 border-emerald-300'; // Income
-      case 'buy_to_let':
-        return 'bg-orange-100 border-orange-300'; // Buy-to-let
-      case 'current_account':
-      case 'gia':
-      case 'isa':
-      case 'premium_bond':
-      case 'savings_account':
-      case 'uni_fees_savings_plan':
-      case 'vct':
-        return 'bg-sky-100 border-sky-300'; // Investments
-      case 'credit_card':
-      case 'personal_loan':
-      case 'student_loan':
-        return 'bg-rose-100 border-rose-300'; // Loans
-      case 'main_residence':
-      case 'holiday_home':
-      case 'other_valuable_item':
-        return 'bg-amber-100 border-amber-300'; // Properties
-      case 'workplace_pension':
-      case 'defined_benefit_pension':
-      case 'personal_pension':
-      case 'state_pension':
-        return 'bg-violet-100 border-violet-300'; // Pensions
-      default:
-        return 'bg-muted/30';
-    }
-  };
 
   const projections = useMemo(() => {
     return createProjections(
@@ -309,33 +168,168 @@ export default function PlanningPage() {
     ) as any;
   }, [projections, incomeHighlight, inflationPct, yearsToRetirement, targetIncomeAnnual]);
 
+  // Consistent key derivation for PBS items (use id, then __localId, else index)
+  const pbsItems: any[] = (pbs?.balance_sheet as any[]) || [];
+
   // Cleanup: prune per-item maps to only current projection keys (avoids stale entries)
   useEffect(() => {
     if (!lsHydrated) return;
     try {
-      const keys = new Set((projections as any[]).map((p: any) => String(p.key)));
-      const prune = <T extends Record<string, any>>(obj: T): T => {
-        const next = Object.fromEntries(Object.entries(obj || {}).filter(([k]) => keys.has(String(k)))) as T;
+      const projectionKeys = new Set((projections as any[]).map((p: any) => String(p.key)));
+      const pruneByProjection = <T extends Record<string, any>>(obj: T): T => {
+        const next = Object.fromEntries(Object.entries(obj || {}).filter(([k]) => projectionKeys.has(String(k)))) as T;
+        return next;
+      };
+
+      // For IHT ignore, use PBS item identifiers rather than projection keys
+      const pbsKeys = new Set(pbsItems.map((it: any, idx: number) => getItemKey(it, idx)));
+      const pruneByPbs = <T extends Record<string, any>>(obj: T): T => {
+        const next = Object.fromEntries(Object.entries(obj || {}).filter(([k]) => pbsKeys.has(String(k)))) as T;
         return next;
       };
 
       setItemAssumptions((prev) => {
-        const next = prune(prev);
+        const next = pruneByProjection(prev);
         return JSON.stringify(next) !== JSON.stringify(prev) ? next : prev;
       });
       setPropertyMode((prev) => {
-        const next = prune(prev);
+        const next = pruneByProjection(prev);
         return JSON.stringify(next) !== JSON.stringify(prev) ? next : prev;
       });
       setIncomeHighlight((prev) => {
-        const next = prune(prev);
+        const next = pruneByProjection(prev);
+        return JSON.stringify(next) !== JSON.stringify(prev) ? next : prev;
+      });
+      setIhtIgnore((prev) => {
+        const next = pruneByPbs(prev);
+        return JSON.stringify(next) !== JSON.stringify(prev) ? next : prev;
+      });
+      setIhtTrust((prev) => {
+        const next = pruneByPbs(prev);
         return JSON.stringify(next) !== JSON.stringify(prev) ? next : prev;
       });
     } catch {
       // ignore
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lsHydrated, projections]);
+  }, [lsHydrated, projections, pbs?.balance_sheet]);
+
+  // Build a per-client storage key for session persistence (same-session only)
+  const buildIhtStorageKey = (teamId?: string | number, clientId?: string | number) => `iht:${teamId ?? 'none'}:${clientId ?? 'none'}`;
+
+  // Hydrate IHT state from sessionStorage (per client), after PBS is available
+  useEffect(() => {
+    if (!team?.id || !selectedClient?.client_id) return;
+    if (lsHydrated) return;
+    try {
+      const raw = typeof window !== 'undefined' ? sessionStorage.getItem(buildIhtStorageKey(team.id, selectedClient.client_id)) : null;
+      if (raw) {
+        const data = JSON.parse(raw || '{}') as any;
+        if (typeof data.netChangeOnDeath === 'string') setNetChangeOnDeath(data.netChangeOnDeath);
+        if (typeof data.giftsPrevSevenYears === 'number') setGiftsPrevSevenYears(data.giftsPrevSevenYears);
+        if (typeof data.lifetimeAllowances === 'number') setLifetimeAllowances(data.lifetimeAllowances);
+        if (typeof data.giftsToCharityOnDeath === 'number') setGiftsToCharityOnDeath(data.giftsToCharityOnDeath);
+        if (typeof data.exemptGiftsAnnual === 'number') setExemptGiftsAnnual(data.exemptGiftsAnnual);
+        if (typeof data.residenceNrbApplying === 'number') setResidenceNrbApplying(data.residenceNrbApplying);
+
+        // Prune per-item maps to current PBS keys when loading
+        const pbsKeys = new Set(pbsItems.map((it: any, idx: number) => getItemKey(it, idx)));
+        const pruneByPbs = <T extends Record<string, any>>(obj: T): T => {
+          const next = Object.fromEntries(Object.entries(obj || {}).filter(([k]) => pbsKeys.has(String(k)))) as T;
+          return next;
+        };
+        if (data.ihtIgnore && typeof data.ihtIgnore === 'object') setIhtIgnore(pruneByPbs(data.ihtIgnore));
+        if (data.ihtTrust && typeof data.ihtTrust === 'object') setIhtTrust(pruneByPbs(data.ihtTrust));
+      }
+    } catch {
+      // ignore storage errors
+    } finally {
+      setLsHydrated(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [team?.id, selectedClient?.client_id, pbs?.balance_sheet]);
+
+  // Persist IHT-related state to sessionStorage on change
+  useEffect(() => {
+    if (!team?.id || !selectedClient?.client_id) return;
+    if (!lsHydrated) return;
+    try {
+      const payload = {
+        netChangeOnDeath,
+        giftsPrevSevenYears,
+        lifetimeAllowances,
+        giftsToCharityOnDeath,
+        exemptGiftsAnnual,
+        residenceNrbApplying,
+        ihtIgnore,
+        ihtTrust,
+      };
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem(buildIhtStorageKey(team.id, selectedClient.client_id), JSON.stringify(payload));
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }, [lsHydrated, team?.id, selectedClient?.client_id, netChangeOnDeath, giftsPrevSevenYears, lifetimeAllowances, giftsToCharityOnDeath, exemptGiftsAnnual, residenceNrbApplying, ihtIgnore, ihtTrust]);
+
+  const estateNetWorth = useMemo(() => {
+    let sum = 0;
+    for (let idx = 0; idx < pbsItems.length; idx++) {
+      const it = pbsItems[idx];
+      const key = getItemKey(it, idx);
+      if (ihtIgnore[key]) continue;
+      const t = it.type as BalanceSheetItemKind;
+      if (!isIhtAsset(t)) continue;
+      sum += getIhtItemValue(it);
+    }
+    return sum;
+  }, [pbs?.balance_sheet, ihtIgnore]);
+
+  const trustAssetsTotal = useMemo(() => {
+    let sum = 0;
+    for (let idx = 0; idx < pbsItems.length; idx++) {
+      const it = pbsItems[idx];
+      const key = getItemKey(it, idx);
+      if (ihtIgnore[key]) continue;
+      if (!ihtTrust[key]) continue; // only count items marked Trust
+      const t = it.type as BalanceSheetItemKind;
+      if (!isIhtAsset(t)) continue;
+      sum += getIhtItemValue(it);
+    }
+    return sum;
+  }, [pbs?.balance_sheet, ihtIgnore, ihtTrust]);
+
+  // Nil rate band derived from number of lifetime allowances
+
+
+  // Sum of APR/BPR qualifying investments (IHT exempt): IHT_scheme and eis
+  const aprBprTotal = useMemo(() => {
+    let sum = 0;
+    for (let idx = 0; idx < pbsItems.length; idx++) {
+      const it = pbsItems[idx];
+      const key = getItemKey(it, idx);
+      if (ihtIgnore[key]) continue;
+      const t = it.type as BalanceSheetItemKind;
+      if (t === 'IHT_scheme' || t === 'eis') {
+        sum += getIhtItemValue(it);
+      }
+    }
+    return sum;
+  }, [pbs?.balance_sheet, ihtIgnore]);
+
+  const nilRateBand = useMemo(() => {
+    return (Number(lifetimeAllowances) || 0) * 325_000;
+  }, [lifetimeAllowances]);
+
+  const taxableEstate = useMemo(() => {
+    // Taxable Estate (before gifts) = Current value + Net change - Assets written in trust
+    const base = (Number(estateNetWorth) || 0) + parseLooseNumber(netChangeOnDeath);
+    return base - (Number(trustAssetsTotal) || 0);
+  }, [estateNetWorth, netChangeOnDeath, trustAssetsTotal]);
+
+  const taxableEstateIncludingGifts = useMemo(() => {
+    return (Number(taxableEstate) || 0) + (Number(giftsPrevSevenYears) || 0);
+  }, [taxableEstate, giftsPrevSevenYears]);
 
   return (
     <section className="p-4 lg:p-8">
@@ -354,6 +348,12 @@ export default function PlanningPage() {
             Pension Planning
           </button>
           <button
+            className={`px-3 py-1.5 text-sm border-l ${activeTab === 'iht' ? 'bg-emerald-600 text-white' : 'bg-white dark:bg-neutral-900'}`}
+            onClick={() => setActiveTab('iht')}
+          >
+            IHT
+          </button>
+          <button
             className={`px-3 py-1.5 text-sm border-l ${activeTab === 'cashflow' ? 'bg-emerald-600 text-white' : 'bg-white dark:bg-neutral-900'}`}
             onClick={() => setActiveTab('cashflow')}
           >
@@ -364,65 +364,82 @@ export default function PlanningPage() {
 
       {activeTab === 'pension' ? (
         <>
-          {/* Top info row */}
-          <div className="mb-6">
-            {selectedClient && team ? (
-              <div className="border rounded-md p-4 bg-white dark:bg-black">
-                <SettingsBar
-                  loading={loading}
-                  yearsToRetirement={yearsToRetirement}
-                  inflationPct={inflationPct}
-                  onInflationChange={handleInflationChange}
-                  incomeEquivalentPct={incomeEquivalentPct}
-                  onIncomeEquivalentChange={handleWithdrawalChange}
-                  onReset={handleReset}
-                  missing={missing}
-                />
-              </div>
-            ) : (
-              <div className="text-muted-foreground">Select a client to see planning details.</div>
-            )}
-          </div>
+          <PensionSummary
+            selectedClientPresent={!!selectedClient}
+            teamPresent={!!team}
+            loading={loading}
+            yearsToRetirement={yearsToRetirement}
+            inflationPct={inflationPct}
+            onInflationChange={handleInflationChange}
+            incomeEquivalentPct={incomeEquivalentPct}
+            onIncomeEquivalentChange={handleWithdrawalChange}
+            onReset={handleReset}
+            missing={missing}
+          />
 
           {/* Forward value summary for investments/pensions */}
-          {selectedClient && team && yearsToRetirement != null ? (
-            <div className="mt-6 border rounded-md bg-white dark:bg-black">
-              <div className="px-4 py-3 border-b font-medium">Projected values at retirement</div>
-              {loading ? (
-                <div className="p-4 text-muted-foreground">Loading…</div>
-              ) : projections.length > 0 ? (
-                <div>
-                  {/* Totals row */}
-                  <TotalsCard totals={totals as any} targetIncomeAnnual={targetIncomeAnnual} />
-                  <ProjectionList
-                    rows={projections as any}
-                    itemAssumptions={itemAssumptions}
-                    incomeHighlight={incomeHighlight}
-                    propertyMode={propertyMode}
-                    defaults={{
-                      annual_growth_rate: DEFAULTS.annual_growth_rate,
-                      contribution_growth_rate: DEFAULTS.contribution_growth_rate,
-                      loan_interest_rate: 0.05,
-                      tax_rate: 0.2,
-                      above_inflation_growth_rate: 0.01,
-                    }}
-                    setItemAssumptions={setItemAssumptions}
-                    setIncomeHighlight={setIncomeHighlight}
-                    setPropertyMode={setPropertyMode}
-                  />
-                </div>
-              ) : (
-                <div className="p-4 text-muted-foreground">No investment or pension items to project.</div>
-              )}
-            </div>
-          ) : null}
+          <PensionProjections
+            enabled={!!selectedClient && !!team && yearsToRetirement != null}
+            loading={loading}
+            projections={projections as any[]}
+            totals={totals as any}
+            targetIncomeAnnual={targetIncomeAnnual}
+            itemAssumptions={itemAssumptions}
+            incomeHighlight={incomeHighlight}
+            propertyMode={propertyMode}
+            defaults={{
+              annual_growth_rate: DEFAULTS.annual_growth_rate,
+              contribution_growth_rate: DEFAULTS.contribution_growth_rate,
+              loan_interest_rate: 0.05,
+              tax_rate: 0.2,
+              above_inflation_growth_rate: 0.01,
+            }}
+            setItemAssumptions={setItemAssumptions}
+            setIncomeHighlight={setIncomeHighlight}
+            setPropertyMode={setPropertyMode}
+          />
 
           <p className="mt-6 text-muted-foreground">More planning tools coming soon.</p>
         </>
+      ) : activeTab === 'iht' ? (
+        <>
+          {/* IHT summary */}
+          <IhtSummary
+            estateNetWorth={estateNetWorth}
+            netChangeOnDeath={netChangeOnDeath}
+            setNetChangeOnDeath={setNetChangeOnDeath}
+            trustAssetsTotal={trustAssetsTotal}
+            taxableEstate={taxableEstate}
+            giftsPrevSevenYears={giftsPrevSevenYears}
+            setGiftsPrevSevenYears={setGiftsPrevSevenYears}
+            parseLooseNumber={parseLooseNumber}
+            taxableEstateIncludingGifts={taxableEstateIncludingGifts}
+            lifetimeAllowances={lifetimeAllowances}
+            setLifetimeAllowances={setLifetimeAllowances}
+            nilRateBand={nilRateBand}
+            giftsToCharityOnDeath={giftsToCharityOnDeath}
+            setGiftsToCharityOnDeath={setGiftsToCharityOnDeath}
+            aprBprTotal={aprBprTotal}
+            exemptGiftsAnnual={exemptGiftsAnnual}
+            setExemptGiftsAnnual={setExemptGiftsAnnual}
+            residenceNrbApplying={residenceNrbApplying}
+            setResidenceNrbApplying={setResidenceNrbApplying}
+          />
+
+          {/* IHT assets list */}
+          <IhtPlanning
+            pbsItems={pbsItems}
+            getItemBg={getItemBg}
+            getItemKey={getItemKey}
+            isIhtAsset={isIhtAsset}
+            ihtIgnore={ihtIgnore}
+            setIhtIgnore={setIhtIgnore}
+            ihtTrust={ihtTrust}
+            setIhtTrust={setIhtTrust}
+          />
+        </>
       ) : (
-        <div className="mt-6 border rounded-md p-4 bg-white dark:bg-black text-muted-foreground">
-          Cash Flow Analysis coming soon.
-        </div>
+        <CashflowSummary />
       )}
     </section>
   );

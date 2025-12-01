@@ -22,6 +22,8 @@ export default function DashboardLayout({
     { href: '/dashboard/statements', label: 'Statements' },
     { href: '/dashboard/shopping', label: 'Shopping list' },
     { href: '/dashboard/planning', label: 'Planning' },
+    { href: '/dashboard/portfolio', label: 'Portfolio' },
+    { href: '/dashboard/intelliflo', label: 'Intelliflo' },
     { href: '/dashboard/dev', label: 'Dev' },
     { href: '/dashboard/settings', label: 'Settings' },
   ];

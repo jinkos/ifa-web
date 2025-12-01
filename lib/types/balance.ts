@@ -125,6 +125,15 @@ export interface StatePensionData {
   pension: CashFlow;
 }
 
+// State pensions have neither a pot value nor employer contributions; instead they model a pension cash flow
+export interface AnnuityPensionData {
+  pension: CashFlow;
+}
+
+export interface CollectableData {
+  value?: number | null;
+}
+
 // Expenses model (regular expenditure)
 export interface ExpensesData {
   expenditure: CashFlow;
@@ -152,7 +161,15 @@ export type BalanceSheetItemKind =
   | 'workplace_pension'
   | 'defined_benefit_pension'
   | 'personal_pension'
-  | 'state_pension';
+  | 'state_pension'
+  | 'annuity_pension'
+  | 'collectable'
+  | 'deposit_account'
+  | 'eis'
+  | 'IHT_scheme'
+  | 'life_insurance'
+  | 'sipp'
+  | 'whole_of_life_policy';
 
 type BalanceSheetBase<K extends BalanceSheetItemKind> = {
   type: K;
@@ -261,6 +278,38 @@ export type ExpensesItem = BalanceSheetBase<'expenses'> & {
   ite: ExpensesData;
 };
 
+export type AnnuityPension = BalanceSheetBase<'annuity_pension'> & {
+  ite: AnnuityPensionData;
+};
+
+export type CollectableItem = BalanceSheetBase<'collectable'> & {
+  ite: CollectableData;
+};
+
+export type DepositAccountItem = BalanceSheetBase<'deposit_account'> & {
+  ite: InvestmentData;
+};
+
+export type EisItem = BalanceSheetBase<'eis'> & {
+  ite: InvestmentData;
+};
+
+export type IHTSchemeItem = BalanceSheetBase<'IHT_scheme'> & {
+  ite: InvestmentData;
+};
+
+export type LifeInsuranceItem = BalanceSheetBase<'life_insurance'> & {
+  ite: InvestmentData;
+};
+
+export type SippItem = BalanceSheetBase<'sipp'> & {
+  ite: NonStatePensionData;
+};
+
+export type WholeOfLifePolicyItem = BalanceSheetBase<'whole_of_life_policy'> & {
+  ite: InvestmentData;
+};
+
 export type PersonalBalanceSheetItem =
   | SalaryIncomeItem
   | SideHustleIncomeItem
@@ -283,7 +332,16 @@ export type PersonalBalanceSheetItem =
   | DefinedBenefitPensionItem
   | PersonalPensionItem
   | StatePensionItem
-  | ExpensesItem;
+  | ExpensesItem
+  | AnnuityPension
+  | CollectableItem
+  | DepositAccountItem
+  | EisItem
+  | IHTSchemeItem
+  | LifeInsuranceItem
+  | SippItem
+  | WholeOfLifePolicyItem
+  ;
 
 /**
  * Legacy v1 balance shape used by the Balance Sheet editor while the API still carries
