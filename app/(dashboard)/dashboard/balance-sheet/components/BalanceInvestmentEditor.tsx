@@ -4,16 +4,21 @@ import Field from '@/components/ui/form/Field';
 import { Input } from '@/components/ui/input';
 import { NumberInput } from '@/components/ui/number-input';
 import { CashFlowFieldset } from '@/components/ui/form/CashFlowFieldset';
-import type { PersonalBalanceSheetItem, NetGrossIndicator, InvestmentData } from '@/lib/types/balance';
+import type { PersonalBalanceSheetItem, InvestmentData } from '@/lib/types/balance';
 
 type InvestmentKinds =
   | 'current_account'
+  | 'deposit_account'
   | 'gia'
   | 'isa'
   | 'premium_bond'
   | 'savings_account'
   | 'uni_fees_savings_plan'
-  | 'vct';
+  | 'vct'
+  | 'eis'
+  | 'IHT_scheme'
+  | 'life_insurance'
+  | 'whole_of_life_policy';
 
 export default function BalanceInvestmentEditor({
   item,
@@ -29,16 +34,15 @@ export default function BalanceInvestmentEditor({
   const hasIncome = !(kind === 'uni_fees_savings_plan');
 
   const incomeLabel: string =
-    kind === 'current_account' || kind === 'premium_bond' || kind === 'savings_account'
+    kind === 'current_account' || kind === 'deposit_account' || kind === 'premium_bond' || kind === 'savings_account'
       ? 'Interest'
-      : kind === 'gia' || kind === 'vct'
+      : kind === 'gia' || kind === 'vct' || kind === 'eis' || kind === 'IHT_scheme'
       ? 'Dividends'
       : kind === 'isa'
       ? 'Withdrawals'
+      : kind === 'life_insurance' || kind === 'whole_of_life_policy'
+      ? 'Payouts'
       : 'Income';
-
-  const defaultIncomeNetGross: NetGrossIndicator =
-    kind === 'vct' || kind === 'premium_bond' ? 'net' : 'gross';
 
   const contrib = item.ite.contribution ?? null;
   const income = item.ite.income ?? null;

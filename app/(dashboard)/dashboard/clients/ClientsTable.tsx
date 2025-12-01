@@ -49,6 +49,15 @@ export function ClientsTable({ clients: initialClients }: { clients: Client[] })
 
   const [errorModal, setErrorModal] = useState<{ open: boolean; message?: string }>({ open: false });
 
+  // Keep selectedClient in sync if its server copy changes (e.g. name edit)
+  useEffect(() => {
+    if (!selectedClient) return;
+    const updated = clients.find(c => c.client_id === selectedClient.client_id);
+    if (updated && JSON.stringify(updated) !== JSON.stringify(selectedClient)) {
+      setSelectedClient(updated);
+    }
+  }, [clients, selectedClient, setSelectedClient]);
+
   // Auto-delete flow triggered via query param ?autodelete=Name
   const autoDeleteRan = useRef(false);
   const recreateRan = useRef(false);
@@ -230,7 +239,18 @@ export function ClientsTable({ clients: initialClients }: { clients: Client[] })
                       <Check className="w-5 h-5" stroke={isSelected ? 'black' : '#d1d5db'} />
                     </button>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap"><span data-testid="client-name">{client.name}</span></td>
+                  <td className="px-6 py-4 whitespace-nowrap flex items-center gap-2">
+                    <span data-testid="client-name">{client.name}</span>
+                    {client.back_end === 'intelliflo' && (
+                      <span
+                        className="inline-flex items-center rounded bg-indigo-100 text-indigo-700 px-2 py-0.5 text-[10px] font-semibold"
+                        title={`Linked to Intelliflo (iid ${client.back_end_id || 'n/a'})`}
+                        data-testid="client-backend-indicator"
+                      >
+                        IF
+                      </span>
+                    )}
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap"><span data-testid="client-email">{client.email || '-'}</span> </td>
                   <td className="px-6 py-4 whitespace-nowrap flex gap-2">
                     <Link href={`/dashboard/clients/client_details/${client.client_id}`}>

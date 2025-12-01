@@ -10,6 +10,7 @@ import BalanceInvestmentEditor from './BalanceInvestmentEditor';
 import BalanceLoanEditor from './BalanceLoanEditor';
 import BalancePensionEditor from './BalancePensionEditor';
 import BalancePropertyEditor from './BalancePropertyEditor';
+import BalanceCollectableEditor from './BalanceCollectableEditor';
 import type {
   BalanceSheetItemKind,
   PersonalBalanceSheetItem,
@@ -29,22 +30,30 @@ const balanceItemLabels: Record<BalanceSheetItemKind, string> = {
   expenses: 'Expenses',
   buy_to_let: 'Buy-to-let property',
   current_account: 'Current account',
+  deposit_account: 'Deposit account',
   gia: 'General investment account (GIA)',
   isa: 'Individual savings account (ISA)',
   premium_bond: 'Premium Bonds',
   savings_account: 'Savings account',
   uni_fees_savings_plan: 'University fees savings plan',
   vct: 'Venture Capital Trust (VCT)',
+  eis: 'Enterprise Investment Scheme (EIS)',
+  IHT_scheme: 'Inheritance tax scheme',
+  life_insurance: 'Life insurance policy',
+  whole_of_life_policy: 'Whole-of-life policy',
   credit_card: 'Credit card',
   personal_loan: 'Personal loan',
   student_loan: 'Student loan',
   main_residence: 'Main residence',
   holiday_home: 'Holiday home',
   other_valuable_item: 'Other valuable item',
+  collectable: 'Collectable',
   workplace_pension: 'Workplace pension',
   defined_benefit_pension: 'Defined benefit pension',
   personal_pension: 'Personal pension',
   state_pension: 'State pension',
+  sipp: 'Self-invested personal pension (SIPP)',
+  annuity_pension: 'Annuity pension',
 };
 
 const defaultCashFlow = (): CashFlow => ({ periodic_amount: null, frequency: 'monthly', net_gross: 'gross' });
@@ -83,12 +92,18 @@ const makeDefaultItem = (kind: BalanceSheetItemKind): PersonalBalanceSheetItem =
 
     // INVESTMENTS
     case 'current_account':
+    case 'current_account':
+    case 'deposit_account':
     case 'gia':
     case 'isa':
     case 'premium_bond':
     case 'savings_account':
     case 'uni_fees_savings_plan':
     case 'vct':
+    case 'eis':
+    case 'IHT_scheme':
+    case 'life_insurance':
+    case 'whole_of_life_policy':
       return { ...common, ite: { contribution: null, income: null, investment_value: null } };
 
     // LOANS
@@ -107,6 +122,7 @@ const makeDefaultItem = (kind: BalanceSheetItemKind): PersonalBalanceSheetItem =
     case 'workplace_pension':
     case 'defined_benefit_pension':
     case 'personal_pension':
+    case 'sipp':
       return {
         ...common,
         ite: {
@@ -117,6 +133,7 @@ const makeDefaultItem = (kind: BalanceSheetItemKind): PersonalBalanceSheetItem =
         },
       };
     case 'state_pension':
+    case 'annuity_pension':
       return {
         ...common,
         ite: {
@@ -128,6 +145,13 @@ const makeDefaultItem = (kind: BalanceSheetItemKind): PersonalBalanceSheetItem =
         ...common,
         ite: {
           expenditure: { periodic_amount: null, frequency: 'monthly', net_gross: 'gross' },
+        } as any,
+      };
+    case 'collectable':
+      return {
+        ...common,
+        ite: {
+          value: null,
         } as any,
       };
   }
@@ -164,17 +188,24 @@ export default function BalanceSheetSection({
       case 'salary_income':
       case 'side_hustle_income':
       case 'self_employment_income':
+      case 'expenses':
         return 'bg-emerald-100 border-emerald-300'; // Income
       case 'buy_to_let':
         return 'bg-orange-100 border-orange-300'; // Buy-to-let
       case 'current_account':
+      case 'deposit_account':
       case 'gia':
       case 'isa':
       case 'premium_bond':
       case 'savings_account':
       case 'uni_fees_savings_plan':
       case 'vct':
+      case 'eis':
+      case 'IHT_scheme':
         return 'bg-sky-100 border-sky-300'; // Investments
+      case 'life_insurance':
+      case 'whole_of_life_policy':
+        return 'bg-cyan-100 border-cyan-300'; // Insurance products
       case 'credit_card':
       case 'personal_loan':
       case 'student_loan':
@@ -183,10 +214,16 @@ export default function BalanceSheetSection({
       case 'holiday_home':
       case 'other_valuable_item':
         return 'bg-amber-100 border-amber-300'; // Properties
+      case 'collectable':
+        return 'bg-lime-100 border-lime-300'; // Collectables / Luxury assets
       case 'workplace_pension':
       case 'defined_benefit_pension':
       case 'personal_pension':
+      case 'sipp':
         return 'bg-violet-100 border-violet-300'; // Pensions
+      case 'state_pension':
+      case 'annuity_pension':
+        return 'bg-indigo-100 border-indigo-300'; // Pension income streams
       default:
         return 'bg-muted/30';
     }
@@ -219,7 +256,7 @@ export default function BalanceSheetSection({
   };
 
   // Sorting by sub type: Income, Pension, Investment, Buy to let, Property, Loan
-  type Category = 'income' | 'pension' | 'investment' | 'buy_to_let' | 'property' | 'loan';
+  type Category = 'income' | 'pension' | 'investment' | 'buy_to_let' | 'property' | 'loan' | 'insurance' | 'collectable';
   const getCategory = (t: BalanceSheetItemKind): Category => {
     switch (t) {
       case 'salary_income':
@@ -231,21 +268,31 @@ export default function BalanceSheetSection({
       case 'defined_benefit_pension':
       case 'personal_pension':
       case 'state_pension':
+      case 'sipp':
+      case 'annuity_pension':
         return 'pension';
       case 'current_account':
+      case 'deposit_account':
       case 'gia':
       case 'isa':
       case 'premium_bond':
       case 'savings_account':
       case 'uni_fees_savings_plan':
       case 'vct':
+      case 'eis':
+      case 'IHT_scheme':
         return 'investment';
+      case 'life_insurance':
+      case 'whole_of_life_policy':
+        return 'insurance';
       case 'buy_to_let':
         return 'buy_to_let';
       case 'main_residence':
       case 'holiday_home':
       case 'other_valuable_item':
         return 'property';
+      case 'collectable':
+        return 'collectable';
       case 'credit_card':
       case 'personal_loan':
       case 'student_loan':
@@ -260,8 +307,10 @@ export default function BalanceSheetSection({
     pension: 1,
     investment: 2,
     buy_to_let: 3,
-    property: 4,
-    loan: 5,
+    insurance: 4,
+    property: 5,
+    collectable: 6,
+    loan: 7,
   };
 
   const handleSortByCategory = (e: React.MouseEvent) => {
@@ -332,9 +381,10 @@ export default function BalanceSheetSection({
   };
 
   const investmentIncomeLabel = (kind: BalanceSheetItemKind): string => {
-    if (kind === 'current_account' || kind === 'premium_bond' || kind === 'savings_account') return 'Interest';
-    if (kind === 'gia' || kind === 'vct') return 'Dividends';
+    if (kind === 'current_account' || kind === 'deposit_account' || kind === 'premium_bond' || kind === 'savings_account') return 'Interest';
+    if (kind === 'gia' || kind === 'vct' || kind === 'eis' || kind === 'IHT_scheme') return 'Dividends';
     if (kind === 'isa') return 'Withdrawals';
+    if (kind === 'life_insurance' || kind === 'whole_of_life_policy') return 'Payouts';
     return 'Income';
   };
 
@@ -364,12 +414,17 @@ export default function BalanceSheetSection({
     // Investment items
   if (
       type === 'current_account' ||
+      type === 'deposit_account' ||
       type === 'gia' ||
       type === 'isa' ||
       type === 'premium_bond' ||
       type === 'savings_account' ||
       type === 'uni_fees_savings_plan' ||
-      type === 'vct'
+      type === 'vct' ||
+      type === 'eis' ||
+      type === 'IHT_scheme' ||
+      type === 'life_insurance' ||
+      type === 'whole_of_life_policy'
     ) {
       if (path === 'ite.investment_value') return 'Investment value';
       if (path === 'ite.contribution.periodic_amount') return 'Contribution';
@@ -398,7 +453,7 @@ export default function BalanceSheetSection({
     }
 
     // Pension items
-    if (type === 'workplace_pension' || type === 'defined_benefit_pension' || type === 'personal_pension') {
+    if (type === 'workplace_pension' || type === 'defined_benefit_pension' || type === 'personal_pension' || type === 'sipp') {
       if (path === 'ite.investment_value') return 'Pension value';
       if (path === 'ite.contribution.periodic_amount') return 'Personal Contribution';
       if (path === 'ite.contribution.frequency') return 'Personal Contribution frequency';
@@ -410,10 +465,10 @@ export default function BalanceSheetSection({
       if (path === 'ite.income.frequency') return 'Drawings frequency';
       if (path === 'ite.income.net_gross') return 'Drawings net/gross';
     }
-    if (type === 'state_pension') {
-      if (path === 'ite.pension.periodic_amount') return 'State pension';
-      if (path === 'ite.pension.frequency') return 'State pension frequency';
-      if (path === 'ite.pension.net_gross') return 'State pension net/gross';
+    if (type === 'state_pension' || type === 'annuity_pension') {
+      if (path === 'ite.pension.periodic_amount') return type === 'annuity_pension' ? 'Annuity income' : 'State pension';
+      if (path === 'ite.pension.frequency') return type === 'annuity_pension' ? 'Annuity frequency' : 'State pension frequency';
+      if (path === 'ite.pension.net_gross') return type === 'annuity_pension' ? 'Annuity net/gross' : 'State pension net/gross';
     }
 
     // Expenses
@@ -421,6 +476,10 @@ export default function BalanceSheetSection({
       if (path === 'ite.expenditure.periodic_amount') return 'Expenditure';
       if (path === 'ite.expenditure.frequency') return 'Expenditure frequency';
       if (path === 'ite.expenditure.net_gross') return 'Expenditure net/gross';
+    }
+
+    if (type === 'collectable') {
+      if (path === 'ite.value') return 'Item value';
     }
 
     // Fallback: prettify path
@@ -467,16 +526,28 @@ export default function BalanceSheetSection({
           const isBuyToLet = it.type === 'buy_to_let';
           const isInvestment = (
             it.type === 'current_account' ||
+            it.type === 'deposit_account' ||
             it.type === 'gia' ||
             it.type === 'isa' ||
             it.type === 'premium_bond' ||
             it.type === 'savings_account' ||
             it.type === 'uni_fees_savings_plan' ||
-            it.type === 'vct'
+            it.type === 'vct' ||
+            it.type === 'eis' ||
+            it.type === 'IHT_scheme' ||
+            it.type === 'life_insurance' ||
+            it.type === 'whole_of_life_policy'
           );
           const isLoan = it.type === 'credit_card' || it.type === 'personal_loan' || it.type === 'student_loan';
-          const isPension = it.type === 'workplace_pension' || it.type === 'defined_benefit_pension' || it.type === 'personal_pension' || it.type === 'state_pension';
+          const isPension =
+            it.type === 'workplace_pension' ||
+            it.type === 'defined_benefit_pension' ||
+            it.type === 'personal_pension' ||
+            it.type === 'state_pension' ||
+            it.type === 'sipp' ||
+            it.type === 'annuity_pension';
           const isProperty = it.type === 'main_residence' || it.type === 'holiday_home' || it.type === 'other_valuable_item';
+          const isCollectable = it.type === 'collectable';
           const itemPatch = (suggestions ?? [])?.find((p) => p.type === (it.type as any) && normalize(p.description) === normalize(it.description));
           const label = balanceItemLabels[it.type as BalanceSheetItemKind] ?? it.type;
           const sectionKey = `balance.item:${it.type}|${normalize(it.description)}`;
@@ -577,6 +648,13 @@ export default function BalanceSheetSection({
               )}
               {isProperty && (
                 <BalancePropertyEditor
+                  item={it as any}
+                  descriptionError={getDescriptionError(it)}
+                  onChange={(next) => updateItem(it.__localId, next)}
+                />
+              )}
+              {isCollectable && (
+                <BalanceCollectableEditor
                   item={it as any}
                   descriptionError={getDescriptionError(it)}
                   onChange={(next) => updateItem(it.__localId, next)}

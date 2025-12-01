@@ -85,6 +85,14 @@ ItemType = Literal[
     'defined_benefit_pension',
     'personal_pension',
     'state_pension',
+    'annuity_pension',
+    'collectable',
+    'deposit_account',
+    'eis',
+    'IHT_scheme',
+    'life_insurance',
+    'sipp',
+    'whole_of_life_policy',
 ]
 
 Age = Annotated[int, Field(ge=0, le=120, description='Age in years')]

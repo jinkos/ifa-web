@@ -7,9 +7,8 @@ import type { Client } from "@/lib/types/client";
 interface SelectedClientContextType {
   selectedClient: Client | null;
   setSelectedClient: (client: Client | null) => void;
-
-
-  }
+  refreshSelectedClient: () => Promise<void>;
+}
 
 const SelectedClientContext = createContext<SelectedClientContextType | undefined>(undefined);
 
@@ -45,7 +44,24 @@ export function SelectedClientProvider({ children }: { children: ReactNode }) {
       for (let i = 0; i < attempts && !ignore; i++) {
         try {
           const res = await fetch(`/api/clients/${id}`, { cache: 'no-store' });
-          if (res.ok) return; // valid selection
+          if (res.ok) {
+            // Always refresh latest server copy to avoid stale fields (e.g. renamed client)
+            try {
+              const latest = await res.json();
+              // Only update if something actually changed to avoid unnecessary re-renders
+              if (!ignore && latest && typeof latest.client_id === 'number') {
+                const prev = selectedClient;
+                const changed = !prev || JSON.stringify(prev) !== JSON.stringify(latest);
+                if (changed) {
+                  setSelectedClientState(latest);
+                  localStorage.setItem('selected_client', JSON.stringify(latest));
+                }
+              }
+            } catch {
+              // If JSON parsing fails we still treat existence as valid and keep previous selection
+            }
+            return; // valid selection, stop retry loop
+          }
         } catch {
           // ignore network blips; we'll retry
         }
@@ -83,8 +99,27 @@ export function SelectedClientProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Manual refresh function to fetch latest client data from server
+  const refreshSelectedClient = async () => {
+    const id = selectedClient?.client_id;
+    if (!id) return;
+    
+    try {
+      const res = await fetch(`/api/clients/${id}`, { cache: 'no-store' });
+      if (res.ok) {
+        const latest = await res.json();
+        if (latest && typeof latest.client_id === 'number') {
+          setSelectedClientState(latest);
+          localStorage.setItem('selected_client', JSON.stringify(latest));
+        }
+      }
+    } catch (error) {
+      console.error('Failed to refresh selected client:', error);
+    }
+  };
+
   return (
-    <SelectedClientContext.Provider value={{ selectedClient, setSelectedClient }}>
+    <SelectedClientContext.Provider value={{ selectedClient, setSelectedClient, refreshSelectedClient }}>
       {children}
     </SelectedClientContext.Provider>
   );

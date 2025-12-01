@@ -24,22 +24,30 @@ export const balanceSheetItemKinds: BalanceSheetItemKind[] = [
   'expenses',
   'buy_to_let',
   'current_account',
+  'deposit_account',
   'gia',
   'isa',
   'premium_bond',
   'savings_account',
   'uni_fees_savings_plan',
   'vct',
+  'eis',
+  'IHT_scheme',
+  'life_insurance',
+  'whole_of_life_policy',
   'credit_card',
   'personal_loan',
   'student_loan',
   'main_residence',
   'holiday_home',
   'other_valuable_item',
+  'collectable',
   'workplace_pension',
   'defined_benefit_pension',
   'personal_pension',
   'state_pension',
+  'sipp',
+  'annuity_pension',
 ];
 
 export const balanceSheetIncomeKinds: BalanceSheetItemKind[] = [
@@ -52,15 +60,21 @@ export const balanceSheetIncomeKinds: BalanceSheetItemKind[] = [
 export const balanceSheetAssetKinds: BalanceSheetItemKind[] = [
   'buy_to_let',
   'current_account',
+  'deposit_account',
   'gia',
   'isa',
   'premium_bond',
   'savings_account',
   'uni_fees_savings_plan',
   'vct',
+  'eis',
+  'IHT_scheme',
+  'life_insurance',
+  'whole_of_life_policy',
   'main_residence',
   'holiday_home',
   'other_valuable_item',
+  'collectable',
 ];
 
 export const balanceSheetLiabilityKinds: BalanceSheetItemKind[] = [
@@ -74,6 +88,8 @@ export const balanceSheetPensionKinds: BalanceSheetItemKind[] = [
   'defined_benefit_pension',
   'personal_pension',
   'state_pension',
+  'sipp',
+  'annuity_pension',
 ];
 
 export const balanceSheetGroups: BalanceSheetGroup[] = [
@@ -133,22 +149,30 @@ export const balanceSheetLabels: Record<BalanceSheetItemKind, string> = {
   self_employment_income: 'Self-employment income',
   buy_to_let: 'Buy to let property',
   current_account: 'Current account',
+  deposit_account: 'Deposit account',
   gia: 'General investment account (GIA)',
   isa: 'ISA',
   premium_bond: 'Premium bond',
   savings_account: 'Savings account',
   uni_fees_savings_plan: 'University fees savings plan',
   vct: 'Venture capital trust',
+  eis: 'Enterprise investment scheme',
+  IHT_scheme: 'Inheritance tax scheme',
+  life_insurance: 'Life insurance policy',
+  whole_of_life_policy: 'Whole-of-life policy',
   credit_card: 'Credit card',
   personal_loan: 'Personal loan',
   student_loan: 'Student loan',
   main_residence: 'Main residence',
   holiday_home: 'Holiday home',
   other_valuable_item: 'Other valuable item',
+  collectable: 'Collectable',
   workplace_pension: 'Workplace pension',
   defined_benefit_pension: 'Defined benefit pension',
   personal_pension: 'Personal pension',
   state_pension: 'State pension',
+  sipp: 'Self-invested personal pension (SIPP)',
+  annuity_pension: 'Annuity pension',
   expenses: 'Expenses',
 };
 
@@ -189,6 +213,11 @@ export const balanceSheetFieldLabels: Record<
     income: 'Interest income',
     investmentValue: 'Balance',
   },
+  deposit_account: {
+    contribution: 'Contribution',
+    income: 'Interest income',
+    investmentValue: 'Balance',
+  },
   gia: {
     contribution: 'Contribution',
     income: 'Income',
@@ -218,6 +247,26 @@ export const balanceSheetFieldLabels: Record<
     contribution: 'Contribution',
     income: 'Dividend income',
     investmentValue: 'Investment value',
+  },
+  eis: {
+    contribution: 'Contribution',
+    income: 'Dividend income',
+    investmentValue: 'Investment value',
+  },
+  IHT_scheme: {
+    contribution: 'Contribution',
+    income: 'Distribution income',
+    investmentValue: 'Investment value',
+  },
+  life_insurance: {
+    contribution: 'Premium',
+    income: 'Payouts',
+    investmentValue: 'Policy value',
+  },
+  whole_of_life_policy: {
+    contribution: 'Premium',
+    income: 'Payouts',
+    investmentValue: 'Policy value',
   },
 
   // LOAN ITEMS
@@ -253,6 +302,9 @@ export const balanceSheetFieldLabels: Record<
     balance: 'Loan balance',
     repayment: 'Loan repayment',
   },
+  collectable: {
+    value: 'Item value',
+  },
 
   // PENSION ITEMS
   workplace_pension: {
@@ -273,9 +325,18 @@ export const balanceSheetFieldLabels: Record<
     investmentValue: 'Pension value',
     employerContribution: 'Employer contribution',
   },
+  sipp: {
+    contribution: 'Personal contribution',
+    income: 'Income',
+    investmentValue: 'Pension value',
+    employerContribution: 'Employer contribution',
+  },
   state_pension: {
     // For state pension we only show a pension cash flow in UI
     pension: 'State pension',
+  },
+  annuity_pension: {
+    pension: 'Annuity income',
   },
   expenses: {
     expenditure: 'Expenditure',
