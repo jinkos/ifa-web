@@ -114,6 +114,23 @@ export async function createCustomerPortalSession(team: Team) {
   });
 }
 
+export async function createCancelSubscriptionPortalSession(team: Team) {
+  if (!team.stripeCustomerId || !team.stripeSubscriptionId) {
+    redirect('/dashboard/settings');
+  }
+
+  return stripe.billingPortal.sessions.create({
+    customer: team.stripeCustomerId,
+    return_url: `${process.env.BASE_URL}/dashboard/settings`,
+    flow_data: {
+      type: 'subscription_cancel',
+      subscription_cancel: {
+        subscription: team.stripeSubscriptionId
+      }
+    }
+  });
+}
+
 export async function handleSubscriptionChange(
   subscription: Stripe.Subscription
 ) {

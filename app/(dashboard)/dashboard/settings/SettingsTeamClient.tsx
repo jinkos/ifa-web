@@ -4,7 +4,7 @@ import useSWR from "swr";
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { customerPortalAction } from '@/lib/payments/actions';
+import { customerPortalAction, cancelSubscriptionAction } from '@/lib/payments/actions';
 import { removeTeamMember, inviteTeamMember } from '@/app/(login)/actions';
 import { Input } from '@/components/ui/input';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -32,6 +32,9 @@ function SubscriptionSkeleton() {
 
 function ManageSubscription() {
   const { data: teamData } = useSWR<TeamDataWithMembers>('/api/team', fetcher);
+  const hasActiveSubscription =
+    teamData?.subscriptionStatus === 'active' ||
+    teamData?.subscriptionStatus === 'trialing';
   return (
     <Card className="mb-8">
       <CardHeader>
@@ -52,11 +55,24 @@ function ManageSubscription() {
                   : 'No active subscription'}
               </p>
             </div>
-            <form action={customerPortalAction}>
-              <Button type="submit" variant="outline">
-                Manage Subscription
-              </Button>
-            </form>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <form action={customerPortalAction}>
+                <Button type="submit" variant="outline">
+                  Manage Subscription
+                </Button>
+              </form>
+              {hasActiveSubscription && (
+                <form action={cancelSubscriptionAction}>
+                  <Button
+                    type="submit"
+                    variant="outline"
+                    className="w-full sm:w-auto text-destructive border-destructive hover:bg-destructive/10"
+                  >
+                    Cancel Subscription
+                  </Button>
+                </form>
+              )}
+            </div>
           </div>
         </div>
       </CardContent>

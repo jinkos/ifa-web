@@ -1,7 +1,11 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { createCheckoutSession, createCustomerPortalSession } from './stripe';
+import {
+  createCheckoutSession,
+  createCustomerPortalSession,
+  createCancelSubscriptionPortalSession
+} from './stripe';
 import { withTeam } from '@/lib/auth/middleware';
 
 export const checkoutAction = withTeam(async (formData, team) => {
@@ -11,5 +15,10 @@ export const checkoutAction = withTeam(async (formData, team) => {
 
 export const customerPortalAction = withTeam(async (_, team) => {
   const portalSession = await createCustomerPortalSession(team);
+  redirect(portalSession.url);
+});
+
+export const cancelSubscriptionAction = withTeam(async (_, team) => {
+  const portalSession = await createCancelSubscriptionPortalSession(team);
   redirect(portalSession.url);
 });
